@@ -1,6 +1,6 @@
 """
 БОТ «ИНЖИНИРИНГ БИЗНЕСА»
-Версия 6.3 — Исправлены все ошибки
+Версия 6.4 — Исправлено меню для админа
 """
 
 import os
@@ -218,7 +218,7 @@ def get_all_users_stats():
     }
 
 # ===================================================================
-# 3. ТЕКСТЫ (ИСПРАВЛЕНЫ — УБРАНЫ ЛИШНИЕ ЗВЁЗДОЧКИ)
+# 3. ТЕКСТЫ
 # ===================================================================
 
 def welcome_text(first_name):
@@ -374,7 +374,19 @@ def get_start_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 def get_main_menu():
-    """Главное меню"""
+    """Главное меню для пользователей"""
+    keyboard = [
+        [InlineKeyboardButton("📊 Общий финансовый", callback_data="menu_ceo")],
+        [InlineKeyboardButton("📈 Маркетинг", callback_data="menu_marketing")],
+        [InlineKeyboardButton("💰 Продажи", callback_data="menu_sales")],
+        [InlineKeyboardButton("📦 Логистика", callback_data="menu_logistics")],
+        [InlineKeyboardButton("👥 Персонал", callback_data="menu_hr")],
+        [InlineKeyboardButton("📅 Бухгалтерия", callback_data="menu_finance")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def get_main_menu_with_admin():
+    """Главное меню с админ-кнопкой (только для админа)"""
     keyboard = [
         [InlineKeyboardButton("📊 Общий финансовый", callback_data="menu_ceo")],
         [InlineKeyboardButton("📈 Маркетинг", callback_data="menu_marketing")],
@@ -382,13 +394,12 @@ def get_main_menu():
         [InlineKeyboardButton("📦 Логистика", callback_data="menu_logistics")],
         [InlineKeyboardButton("👥 Персонал", callback_data="menu_hr")],
         [InlineKeyboardButton("📅 Бухгалтерия", callback_data="menu_finance")],
-        [InlineKeyboardButton("📊 Статистика", callback_data="admin_stats")],
-        [InlineKeyboardButton("📋 Пользователи", callback_data="admin_users")]
+        [InlineKeyboardButton("⚙️ Админ-панель", callback_data="admin_panel")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
 def get_admin_menu():
-    """Админ-меню (доступно только ADMIN_ID)"""
+    """Админ-меню"""
     keyboard = [
         [InlineKeyboardButton("📊 Статистика", callback_data="admin_stats")],
         [InlineKeyboardButton("📋 Список пользователей", callback_data="admin_users")],
@@ -654,7 +665,6 @@ calc_data = {}
 def is_subscribed(user_id):
     """Проверка подписки на канал (синхронная версия)"""
     try:
-        # Создаём временный экземпляр приложения
         import asyncio
         from telegram import Bot
         
@@ -669,7 +679,6 @@ def is_subscribed(user_id):
             finally:
                 await bot.close()
         
-        # Запускаем асинхронную функцию синхронно
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         result = loop.run_until_complete(check())
@@ -747,11 +756,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user:
         create_user(user_id, first_name, last_name, username)
 
-    # Если это админ — показываем админ-меню
+    # Для админа показываем обычное меню + админ-кнопку
     if user_id == ADMIN_ID:
         await update.message.reply_text(
-            "👋 Добро пожаловать в админ-панель!\n\nВыберите действие:",
-            reply_markup=get_admin_menu()
+            "👋 Добро пожаловать!\n\n"
+            "Вы можете пользоваться калькуляторами как обычный пользователь,\n"
+            "или перейти в админ-панель через кнопку внизу.",
+            reply_markup=get_main_menu_with_admin()
         )
         return
 
@@ -765,11 +776,11 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /menu"""
     user_id = update.effective_user.id
     
-    # Если админ — показываем админ-меню
+    # Для админа показываем обычное меню + админ-кнопку
     if user_id == ADMIN_ID:
         await update.message.reply_text(
-            "👋 Админ-панель:\n\nВыберите действие:",
-            reply_markup=get_admin_menu()
+            "👋 Выберите раздел или перейдите в админ-панель:",
+            reply_markup=get_main_menu_with_admin()
         )
         return
     
@@ -796,7 +807,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     data = query.data
 
-    # ===== АДМИН-КНОПКИ =====
+    # ===== АДМИН-ПАНЕЛЬ =====
+    if data == "admin_panel":
+        if user_id != ADMIN_ID:
+            await query.answer("⛔ Нет доступа")
+            return
+        
+        await query.edit_message_text(
+            "⚙️ Админ-панель\n\nВыберите действие:",
+            reply_markup=get_admin_menu()
+        )
+        return
+
     if data == "admin_stats":
         if user_id != ADMIN_ID:
             await query.answer("⛔ Нет доступа")
@@ -884,12 +906,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         
-        # Формируем CSV
         csv = "Имя;Телефон;Email;Telegram;Дата\n"
         for c in contacts:
             csv += f"{c['first_name'] or ''};{c['phone'] or ''};{c['email'] or ''};{c['username'] or ''};{c['created_at'] or ''}\n"
         
-        # Отправляем файлом
         await query.edit_message_text(
             "📤 Экспорт контактов готов!",
             reply_markup=get_admin_menu()
@@ -908,13 +928,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 await query.edit_message_text(
                     after_subscribe_text(),
-                    reply_markup=get_main_menu(),
+                    reply_markup=get_main_menu_with_admin() if user_id == ADMIN_ID else get_main_menu(),
                     parse_mode=None
                 )
             except:
                 await query.message.reply_text(
                     after_subscribe_text(),
-                    reply_markup=get_main_menu(),
+                    reply_markup=get_main_menu_with_admin() if user_id == ADMIN_ID else get_main_menu(),
                     parse_mode=None
                 )
         else:
@@ -969,8 +989,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "back_to_menu":
         clear_state(user_id)
         if user_id == ADMIN_ID:
-            text = "👋 Админ-панель:\n\nВыберите действие:"
-            reply_markup = get_admin_menu()
+            text = "👋 Выберите раздел или перейдите в админ-панель:"
+            reply_markup = get_main_menu_with_admin()
         else:
             text = after_subscribe_text()
             reply_markup = get_main_menu()
@@ -1182,7 +1202,6 @@ async def check_and_send_touches(context: ContextTypes.DEFAULT_TYPE):
     now = datetime.now()
 
     for user in users:
-        # Пропускаем админа
         if user['user_id'] == ADMIN_ID:
             continue
             
@@ -1217,15 +1236,12 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # Регистрация обработчиков
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("menu", menu))
-    app.add_handler(CommandHandler("admin", menu))  # /admin тоже ведёт в админку
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_handler(MessageHandler(filters.CONTACT, handle_contact))
 
-    # Планировщик (проверка каждые 30 минут)
     job_queue = app.job_queue
     if job_queue:
         job_queue.run_repeating(check_and_send_touches, interval=1800, first=60)
