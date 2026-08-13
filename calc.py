@@ -1,6 +1,6 @@
 """
 БОТ «ИНЖИНИРИНГ БИЗНЕСА»
-Версия 8.0 — РАСШИРЕННЫЙ ФУНКЦИОНАЛ (РУС)
+Версия 8.1 — ИСПРАВЛЕНА ОШИБКА С КНОПКАМИ
 """
 
 import os
@@ -370,7 +370,7 @@ def email_sent_text(email):
 До встречи!"""
 
 # ===================================================================
-# 4. КЛАВИАТУРЫ
+# 4. КЛАВИАТУРЫ (ИСПРАВЛЕНЫ)
 # ===================================================================
 
 def get_start_keyboard():
@@ -421,9 +421,17 @@ def get_admin_menu():
     return InlineKeyboardMarkup(keyboard)
 
 def get_calc_list_keyboard(calc_list):
+    """Клавиатура со списком калькуляторов (ИСПРАВЛЕНА)"""
     keyboard = []
-    for key, name in calc_list:
-        keyboard.append([InlineKeyboardButton(name, callback_data=f"calc_{key}")])
+    for item in calc_list:
+        # Убеждаемся, что item — это кортеж (key, name)
+        if isinstance(item, tuple) and len(item) == 2:
+            key, name = item
+            # Принудительно преобразуем в строку
+            keyboard.append([InlineKeyboardButton(str(name), callback_data=f"calc_{str(key)}")])
+        else:
+            logger.error(f"Неверный формат calc_list: {item}")
+            continue
     keyboard.append([InlineKeyboardButton("⬅ Назад к категориям", callback_data="back_to_menu")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -452,7 +460,7 @@ def get_contact_request_keyboard():
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
 
 # ===================================================================
-# 5. КАЛЬКУЛЯТОРЫ И ДАННЫЕ ПО ОТДЕЛАМ
+# 5. КАЛЬКУЛЯТОРЫ (ВСЕ НА РУССКОМ)
 # ===================================================================
 
 # ===== 5.1. ФИНАНСОВЫЙ ОТДЕЛ (CEO) =====
@@ -836,7 +844,8 @@ LEGAL_CALCS = {
 # ===================================================================
 
 def get_calc_groups():
-    return {
+    """Возвращает списки калькуляторов для каждого отдела"""
+    groups = {
         "ceo": list(CEO_CALCS.items()),
         "marketing": list(MARKETING_CALCS.items()),
         "sales": list(SALES_CALCS.items()),
@@ -848,8 +857,10 @@ def get_calc_groups():
         "project": list(PROJECT_CALCS.items()),
         "legal": list(LEGAL_CALCS.items())
     }
+    return groups
 
 def get_calc_info(calc_key):
+    """Получение информации о калькуляторе по ключу"""
     all_calcs = {}
     all_calcs.update(CEO_CALCS)
     all_calcs.update(MARKETING_CALCS)
@@ -869,7 +880,10 @@ def calculate(formula_key, inputs):
         local_vars = {}
         for i, val in enumerate(inputs):
             local_vars[names[i]] = float(val)
-        result = eval(get_calc_info(formula_key)["formula"], {}, local_vars)
+        info = get_calc_info(formula_key)
+        if not info:
+            return None
+        result = eval(info["formula"], {}, local_vars)
         if result % 1 == 0:
             return int(result)
         else:
@@ -1169,7 +1183,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "Выберите калькулятор:",
                     reply_markup=get_calc_list_keyboard(calc_list)
                 )
-            except:
+            except Exception as e:
+                logger.error(f"Ошибка меню: {e}")
                 await query.message.reply_text(
                     "Выберите калькулятор:",
                     reply_markup=get_calc_list_keyboard(calc_list)
@@ -1198,7 +1213,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📊 {info['name']}\n\nВведите {info['inputs'][0]}:",
                 parse_mode=None
             )
-        except:
+        except Exception as e:
+            logger.error(f"Ошибка: {e}")
             await query.message.reply_text(
                 f"📊 {info['name']}\n\nВведите {info['inputs'][0]}:",
                 parse_mode=None
@@ -1221,7 +1237,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=reply_markup,
                 parse_mode=None
             )
-        except:
+        except Exception as e:
+            logger.error(f"Ошибка: {e}")
             await query.message.reply_text(
                 text,
                 reply_markup=reply_markup,
@@ -1239,7 +1256,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Выберите калькулятор:",
                 reply_markup=get_calc_list_keyboard(calc_list)
             )
-        except:
+        except Exception as e:
+            logger.error(f"Ошибка: {e}")
             await query.message.reply_text(
                 "Выберите калькулятор:",
                 reply_markup=get_calc_list_keyboard(calc_list)
@@ -1382,7 +1400,7 @@ async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 # ===================================================================
-# 7. ПЛАНИРОВЩИК
+# 8. ПЛАНИРОВЩИК
 # ===================================================================
 
 async def send_touch_2(context, user_id):
@@ -1441,7 +1459,7 @@ async def check_and_send_touches(context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"❌ Ошибка обработки пользователя {user['user_id']}: {e}")
 
 # ===================================================================
-# 8. ЗАПУСК
+# 9. ЗАПУСК
 # ===================================================================
 
 def main():
