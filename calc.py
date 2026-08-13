@@ -25,11 +25,11 @@ from telegram.ext import (
 # 1. КОНФИГУРАЦИЯ
 # ===================================================================
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "8776638172:AAEmRGbK7ctQ9uc0OJmPdYCoDWv-cxDvXR0")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", " 8776638172:AAEmRGbK7ctQ9uc0OJmPdYCoDWv-cxDvXR0")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "6011810304"))
 
-CHANNEL_ID = os.environ.get("CHANNEL_ID", "@YourChannel")
-CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "https://t.me/YourChannel")
+CHANNEL_ID = os.environ.get("CHANNEL_ID", " -1004391759838 ")
+CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "https://t.me/old_stoic")
 SITE_LINK = os.environ.get("SITE_LINK", "https://optimasystemc.tilda.ws/")
 CONTACT_LINK = os.environ.get("CONTACT_LINK", "@deus_s")
 
