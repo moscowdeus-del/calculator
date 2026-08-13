@@ -1,6 +1,6 @@
 """
 БОТ «ИНЖИНИРИНГ БИЗНЕСА»
-Версия 6.4 — Исправлено меню для админа
+Версия 6.7 — Исправлена проверка подписки
 """
 
 import os
@@ -9,7 +9,6 @@ import logging
 import re
 import sqlite3
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from telegram.ext import (
@@ -188,7 +187,6 @@ def get_active_users():
     return [dict(u) for u in users]
 
 def get_all_users_stats():
-    """Статистика по всем пользователям"""
     conn = get_db()
     cursor = conn.cursor()
     
@@ -366,7 +364,6 @@ def email_sent_text(email):
 # ===================================================================
 
 def get_start_keyboard():
-    """Клавиатура для старта"""
     keyboard = [
         [InlineKeyboardButton("📢 Подписаться", url=CHANNEL_LINK)],
         [InlineKeyboardButton("✅ Проверить подписку", callback_data="check_sub")]
@@ -374,7 +371,6 @@ def get_start_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 def get_main_menu():
-    """Главное меню для пользователей"""
     keyboard = [
         [InlineKeyboardButton("📊 Общий финансовый", callback_data="menu_ceo")],
         [InlineKeyboardButton("📈 Маркетинг", callback_data="menu_marketing")],
@@ -386,7 +382,6 @@ def get_main_menu():
     return InlineKeyboardMarkup(keyboard)
 
 def get_main_menu_with_admin():
-    """Главное меню с админ-кнопкой (только для админа)"""
     keyboard = [
         [InlineKeyboardButton("📊 Общий финансовый", callback_data="menu_ceo")],
         [InlineKeyboardButton("📈 Маркетинг", callback_data="menu_marketing")],
@@ -399,7 +394,6 @@ def get_main_menu_with_admin():
     return InlineKeyboardMarkup(keyboard)
 
 def get_admin_menu():
-    """Админ-меню"""
     keyboard = [
         [InlineKeyboardButton("📊 Статистика", callback_data="admin_stats")],
         [InlineKeyboardButton("📋 Список пользователей", callback_data="admin_users")],
@@ -409,7 +403,6 @@ def get_admin_menu():
     return InlineKeyboardMarkup(keyboard)
 
 def get_calc_list_keyboard(calc_list):
-    """Клавиатура со списком калькуляторов"""
     keyboard = []
     for key, name in calc_list:
         keyboard.append([InlineKeyboardButton(name, callback_data=f"calc_{key}")])
@@ -417,7 +410,6 @@ def get_calc_list_keyboard(calc_list):
     return InlineKeyboardMarkup(keyboard)
 
 def get_after_calc_keyboard():
-    """Клавиатура после расчёта"""
     keyboard = [
         [
             InlineKeyboardButton("🔄 Другой калькулятор", callback_data="back_to_category"),
@@ -428,7 +420,6 @@ def get_after_calc_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 def get_contact_keyboard():
-    """Клавиатура для запроса контакта"""
     keyboard = [
         [InlineKeyboardButton("📱 Поделиться контактом", callback_data="request_contact")],
         [InlineKeyboardButton("✉️ Оставить email", callback_data="request_email")],
@@ -437,7 +428,6 @@ def get_contact_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 def get_contact_request_keyboard():
-    """Клавиатура с кнопкой запроса контакта"""
     keyboard = [
         [KeyboardButton("📱 Отправить контакт", request_contact=True)]
     ]
@@ -659,38 +649,18 @@ def get_calc_info(calc_key):
 
 init_db()
 
-# Хранилище данных для калькуляторов (в оперативной памяти)
-calc_data = {}
-
-def is_subscribed(user_id):
-    """Проверка подписки на канал (синхронная версия)"""
+# ===== ПРОВЕРКА ПОДПИСКИ (АСИНХРОННАЯ) =====
+async def is_subscribed(user_id: int) -> bool:
+    """Асинхронная проверка подписки на канал"""
     try:
-        import asyncio
-        from telegram import Bot
-        
-        async def check():
-            bot = Bot(token=BOT_TOKEN)
-            try:
-                member = await bot.get_chat_member(CHANNEL_ID, user_id)
-                return member.status in ['member', 'administrator', 'creator']
-            except Exception as e:
-                logger.error(f"Ошибка проверки подписки: {e}")
-                return False
-            finally:
-                await bot.close()
-        
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(check())
-        loop.close()
-        return result
-        
+        bot = Application.builder().token(BOT_TOKEN).build().bot
+        member = await bot.get_chat_member(CHANNEL_ID, user_id)
+        return member.status in ['member', 'administrator', 'creator']
     except Exception as e:
         logger.error(f"Ошибка проверки подписки: {e}")
         return False
 
 def send_guide(context, user_id):
-    """Отправка гайда пользователю"""
     guide_text = f"""📘 Гайд «Как навести порядок в бизнесе за 30 дней»
 
 Вступление
@@ -746,7 +716,6 @@ def send_guide(context, user_id):
 # ===== ОБРАБОТЧИКИ КОМАНД =====
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /start"""
     user_id = update.effective_user.id
     first_name = update.effective_user.first_name or "Друг"
     last_name = update.effective_user.last_name
@@ -756,12 +725,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user:
         create_user(user_id, first_name, last_name, username)
 
-    # Для админа показываем обычное меню + админ-кнопку
     if user_id == ADMIN_ID:
         await update.message.reply_text(
             "👋 Добро пожаловать!\n\n"
-            "Вы можете пользоваться калькуляторами как обычный пользователь,\n"
-            "или перейти в админ-панель через кнопку внизу.",
+            "Выберите раздел для расчётов или перейдите в админ-панель:",
             reply_markup=get_main_menu_with_admin()
         )
         return
@@ -773,18 +740,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /menu"""
     user_id = update.effective_user.id
     
-    # Для админа показываем обычное меню + админ-кнопку
     if user_id == ADMIN_ID:
         await update.message.reply_text(
-            "👋 Выберите раздел или перейдите в админ-панель:",
+            "👋 Выберите раздел для расчётов или перейдите в админ-панель:",
             reply_markup=get_main_menu_with_admin()
         )
         return
     
-    if not is_subscribed(user_id):
+    subscribed = await is_subscribed(user_id)
+    if not subscribed:
         await update.message.reply_text(
             "⚠️ Для доступа к калькуляторам подпишитесь на канал:",
             reply_markup=get_start_keyboard()
@@ -800,7 +766,6 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ===== ОБРАБОТЧИКИ КНОПОК =====
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик нажатий на кнопки"""
     query = update.callback_query
     await query.answer()
     
@@ -921,9 +886,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ===== Проверка подписки =====
+    # ===== ПРОВЕРКА ПОДПИСКИ =====
     if data == "check_sub":
-        if is_subscribed(user_id):
+        subscribed = await is_subscribed(user_id)
+        if subscribed:
             update_user(user_id, subscribed=1)
             try:
                 await query.edit_message_text(
@@ -931,14 +897,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=get_main_menu_with_admin() if user_id == ADMIN_ID else get_main_menu(),
                     parse_mode=None
                 )
-            except:
+            except Exception as e:
+                logger.error(f"Ошибка редактирования: {e}")
                 await query.message.reply_text(
                     after_subscribe_text(),
                     reply_markup=get_main_menu_with_admin() if user_id == ADMIN_ID else get_main_menu(),
                     parse_mode=None
                 )
         else:
-            await query.answer("❌ Вы не подписаны. Подпишитесь и нажмите 'Проверить' снова.")
+            await query.answer("❌ Вы не подписаны. Подпишитесь на канал и нажмите 'Проверить' снова.", show_alert=True)
+        return
 
     # ===== Меню =====
     elif data.startswith("menu_"):
@@ -989,7 +957,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "back_to_menu":
         clear_state(user_id)
         if user_id == ADMIN_ID:
-            text = "👋 Выберите раздел или перейдите в админ-панель:"
+            text = "👋 Выберите раздел для расчётов или перейдите в админ-панель:"
             reply_markup = get_main_menu_with_admin()
         else:
             text = after_subscribe_text()
@@ -1045,13 +1013,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ===== ОБРАБОТЧИКИ СООБЩЕНИЙ =====
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик текстовых сообщений"""
     user_id = update.effective_user.id
     text = update.message.text.strip()
 
     state, state_data = get_state(user_id)
 
-    # Состояние: ввод данных для калькулятора
     if state == "calc_input":
         calc_key = state_data.get("calc_key")
         info = get_calc_info(calc_key)
@@ -1107,7 +1073,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"Введите {next_input}:")
         return
 
-    # Состояние: ожидание email
     elif state == "waiting_email":
         if re.match(r'^[^@]+@[^@]+\.[^@]+$', text):
             user = get_user(user_id)
@@ -1126,14 +1091,12 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Введите корректный email (например, name@domain.com):")
         return
 
-    # Любое другое сообщение
     else:
         await update.message.reply_text(
             "Я не понимаю эту команду. Используйте /menu для доступа к калькуляторам."
         )
 
 async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик контакта"""
     user_id = update.effective_user.id
     contact = update.message.contact
 
@@ -1197,7 +1160,6 @@ async def send_touch_4(context, user_id):
         logger.error(f"❌ Ошибка касания 4: {e}")
 
 async def check_and_send_touches(context: ContextTypes.DEFAULT_TYPE):
-    """Проверка и отправка касаний"""
     users = get_active_users()
     now = datetime.now()
 
@@ -1228,7 +1190,6 @@ async def check_and_send_touches(context: ContextTypes.DEFAULT_TYPE):
 # ===================================================================
 
 def main():
-    """Запуск бота"""
     logger.info("🚀 Бот Инжиниринг бизнеса запущен!")
     logger.info(f"📢 Канал: {CHANNEL_LINK}")
     logger.info(f"🌐 Сайт: {SITE_LINK}")
