@@ -1,6 +1,6 @@
 """
 БОТ «ИНЖИНИРИНГ БИЗНЕСА»
-Версия 8.2 — ИСПРАВЛЕНЫ КНОПКИ И ТЕКСТЫ
+Версия 9.0 — С КНОПКОЙ НАЗАД И MIDDLEWARE
 """
 
 import os
@@ -9,6 +9,7 @@ import logging
 import re
 import sqlite3
 from datetime import datetime, timedelta
+from functools import wraps
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from telegram.ext import (
@@ -216,7 +217,7 @@ def get_all_users_stats():
     }
 
 # ===================================================================
-# 3. ТЕКСТЫ (ИСПРАВЛЕНЫ)
+# 3. ТЕКСТЫ
 # ===================================================================
 
 def welcome_text(first_name):
@@ -370,7 +371,7 @@ def email_sent_text(email):
 До встречи!"""
 
 # ===================================================================
-# 4. КЛАВИАТУРЫ (ИСПРАВЛЕНЫ)
+# 4. КЛАВИАТУРЫ
 # ===================================================================
 
 def get_start_keyboard():
@@ -421,7 +422,7 @@ def get_admin_menu():
     return InlineKeyboardMarkup(keyboard)
 
 def get_calc_list_keyboard(calc_list, category=None):
-    """Клавиатура со списком калькуляторов (ИСПРАВЛЕНА)"""
+    """Клавиатура со списком калькуляторов"""
     keyboard = []
     for item in calc_list:
         if isinstance(item, tuple) and len(item) == 2:
@@ -430,9 +431,16 @@ def get_calc_list_keyboard(calc_list, category=None):
         else:
             continue
     
-    # Кнопка "Назад в меню" (всегда внизу)
+    # Кнопка назад в меню
     keyboard.append([InlineKeyboardButton("🏠 В главное меню", callback_data="back_to_menu")])
     
+    return InlineKeyboardMarkup(keyboard)
+
+def get_calc_input_keyboard():
+    """Клавиатура для ввода данных калькулятора с кнопкой назад"""
+    keyboard = [
+        [InlineKeyboardButton("🔙 Отмена", callback_data="cancel_calc")]
+    ]
     return InlineKeyboardMarkup(keyboard)
 
 def get_after_calc_keyboard():
@@ -460,17 +468,16 @@ def get_contact_request_keyboard():
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
 
 # ===================================================================
-# 5. КАЛЬКУЛЯТОРЫ (СОКРАЩЕННАЯ ВЕРСИЯ ДЛЯ ПРИМЕРА)
+# 5. КАЛЬКУЛЯТОРЫ
 # ===================================================================
 
-# ===== 5.1. ФИНАНСОВЫЙ ОТДЕЛ (CEO) =====
 CEO_CALCS = {
     "net_profit": {
         "name": "Чистая прибыль",
         "inputs": ["Выручка (руб)", "Расходы (руб)", "Налоги (руб)"],
         "formula": "a - b - c",
         "interpretation": "Чистая прибыль — главный показатель здоровья бизнеса.",
-        "advice": "1. Посчитайте маржинальность каждого продукта\n2. Сократите неэффективные расходы\n3. Пересмотрите ценообразование",
+        "advice": "1. Посчитайте маржинальность каждого продукта\n2. Сократите неэффективные расходы",
         "problems": "❌ Расходы растут быстрее выручки\n❌ Нет контроля над себестоимостью"
     },
     "roe": {
@@ -480,50 +487,9 @@ CEO_CALCS = {
         "interpretation": "ROE показывает эффективность использования капитала.",
         "advice": "1. Увеличьте чистую прибыль\n2. Оптимизируйте структуру капитала",
         "problems": "❌ Капитал работает неэффективно\n❌ Инвестиции не окупаются"
-    },
-    "roa": {
-        "name": "Рентабельность активов (ROA)",
-        "inputs": ["Чистая прибыль (руб)", "Активы (руб)"],
-        "formula": "(a / b) * 100",
-        "interpretation": "ROA показывает эффективность использования активов.",
-        "advice": "1. Продайте неиспользуемые активы\n2. Увеличьте загрузку производства",
-        "problems": "❌ Активы простаивают\n❌ Много неликвидных запасов"
-    },
-    "bep": {
-        "name": "Точка безубыточности",
-        "inputs": ["Постоянные расходы (руб/мес)", "Цена продажи (руб)", "Переменные расходы (руб)"],
-        "formula": "a / (b - c)",
-        "interpretation": "Минимальный объём продаж для покрытия расходов.",
-        "advice": "1. Повысьте цену продажи\n2. Снизьте переменные расходы",
-        "problems": "❌ Постоянные расходы слишком высоки\n❌ Цены ниже себестоимости"
-    },
-    "cash_flow": {
-        "name": "Денежный поток (FCF)",
-        "inputs": ["Операционный денежный поток (руб)", "Капитальные затраты (руб)"],
-        "formula": "a - b",
-        "interpretation": "Положительный поток — бизнес генерирует деньги.",
-        "advice": "1. Ускорьте сбор дебиторки\n2. Сократите запасы",
-        "problems": "❌ Деньги заморожены в дебиторке\n❌ Нет прогноза денежных потоков"
-    },
-    "ebitda": {
-        "name": "EBITDA",
-        "inputs": ["Чистая прибыль (руб)", "Проценты (руб)", "Налоги (руб)", "Амортизация (руб)"],
-        "formula": "a + b + c + d",
-        "interpretation": "Операционная прибыль без учёта финансовых факторов.",
-        "advice": "1. Оптимизируйте операционные расходы\n2. Внедрите управленческий учёт",
-        "problems": "❌ Нет понимания операционной прибыли\n❌ Нет системы управленческого учёта"
-    },
-    "roi": {
-        "name": "Рентабельность инвестиций (ROI)",
-        "inputs": ["Прибыль от инвестиций (руб)", "Сумма инвестиций (руб)"],
-        "formula": "(a / b) * 100",
-        "interpretation": "Сколько процентов приносят вложенные инвестиции.",
-        "advice": "1. Рассчитывайте ROI до начала инвестиций\n2. Инвестируйте с ROI > 30%",
-        "problems": "❌ Инвестиции без расчёта окупаемости\n❌ Деньги вложены неэффективно"
     }
 }
 
-# ===== 5.2. МАРКЕТИНГ =====
 MARKETING_CALCS = {
     "cac": {
         "name": "Стоимость привлечения клиента (CAC)",
@@ -540,26 +506,9 @@ MARKETING_CALCS = {
         "interpretation": "Сколько денег приносит клиент за всё время.",
         "advice": "1. Увеличьте средний чек через апсейл\n2. Внедрите программу лояльности",
         "problems": "❌ Клиенты уходят быстро\n❌ Нет программы лояльности"
-    },
-    "romi": {
-        "name": "Окупаемость маркетинга (ROMI)",
-        "inputs": ["Доход от маркетинга (руб)", "Расходы на маркетинг (руб)"],
-        "formula": "((a - b) / b) * 100",
-        "interpretation": "Сколько процентов приносит рубль, вложенный в маркетинг.",
-        "advice": "1. Проанализируйте каналы\n2. Отключите неэффективные",
-        "problems": "❌ Маркетинг работает в минус\n❌ Бюджет распределён хаотично"
-    },
-    "conversion": {
-        "name": "Конверсия в продажу",
-        "inputs": ["Количество покупок/заявок", "Количество посетителей/лидов"],
-        "formula": "(a / b) * 100",
-        "interpretation": "Какой процент посетителей становится клиентами.",
-        "advice": "1. Проверьте юзабилити сайта\n2. Улучшите оффер",
-        "problems": "❌ Низкая конверсия\n❌ Сложный путь клиента"
     }
 }
 
-# ===== 5.3. ПРОДАЖИ =====
 SALES_CALCS = {
     "closure": {
         "name": "Коэффициент закрытия сделок",
@@ -568,38 +517,20 @@ SALES_CALCS = {
         "interpretation": "Какой процент сделок вы выигрываете.",
         "advice": "1. Проверьте квалификацию лидов\n2. Обучите менеджеров",
         "problems": "❌ Менеджеры не закрывают сделки\n❌ Нет скриптов продаж"
-    },
-    "avg_check": {
-        "name": "Средний чек",
-        "inputs": ["Выручка (руб)", "Количество транзакций"],
-        "formula": "a / b",
-        "interpretation": "Средний чек — ключевой драйвер прибыли.",
-        "advice": "1. Предлагайте доп. товары/услуги\n2. Используйте апсейл",
-        "problems": "❌ Нет системы апсейла\n❌ Клиенты уходят после первой покупки"
     }
 }
 
-# ===== 5.4. ЛОГИСТИКА И СКЛАД =====
 LOGISTICS_CALCS = {
     "turnover": {
         "name": "Оборачиваемость запасов",
         "inputs": ["Себестоимость проданных товаров (руб/год)", "Средние запасы (руб)"],
         "formula": "a / b",
         "interpretation": "Сколько раз за год оборачиваются ваши запасы.",
-        "advice": "1. Проведите ABC-анализ\n2. Используйте систему «точно в срок»",
+        "advice": "1. Проведите ABC-анализ\n2. Используйте систему точно в срок",
         "problems": "❌ Много залежалого товара\n❌ Деньги заморожены на складе"
-    },
-    "turnover_days": {
-        "name": "Длительность оборота запасов (дней)",
-        "inputs": ["Оборачиваемость запасов (раз в год)"],
-        "formula": "365 / a",
-        "interpretation": "Сколько дней товар находится на складе.",
-        "advice": "1. Заменяйте медленные товары\n2. Проводите акции на залежавшийся товар",
-        "problems": "❌ Товар лежит месяцами\n❌ Нет прогноза спроса"
     }
 }
 
-# ===== 5.5. ПЕРСОНАЛ И HR =====
 HR_CALCS = {
     "employee_turnover": {
         "name": "Текучесть кадров",
@@ -608,18 +539,9 @@ HR_CALCS = {
         "interpretation": "Какой процент сотрудников покидает компанию.",
         "advice": "1. Проведите exit-интервью\n2. Внедрите прозрачную мотивацию",
         "problems": "❌ Сотрудники массово уходят\n❌ Плохая адаптация новичков"
-    },
-    "productivity": {
-        "name": "Производительность труда",
-        "inputs": ["Выручка (руб)", "Количество сотрудников"],
-        "formula": "a / b",
-        "interpretation": "Сколько выручки приносит один сотрудник.",
-        "advice": "1. Автоматизируйте ручные процессы\n2. Внедрите KPI",
-        "problems": "❌ Низкая эффективность сотрудников\n❌ Много ручного труда"
     }
 }
 
-# ===== 5.6. БУХГАЛТЕРИЯ И НАЛОГИ =====
 FINANCE_CALCS = {
     "usn_6": {
         "name": "УСН Доходы (6%)",
@@ -628,18 +550,9 @@ FINANCE_CALCS = {
         "interpretation": "Налог по УСН Доходы — 6% от выручки.",
         "advice": "1. Сравните с УСН 15%\n2. Учитывайте страховые взносы",
         "problems": "❌ Переплата по налогам\n❌ Ошибки в расчётах"
-    },
-    "usn_15": {
-        "name": "УСН Доходы минус расходы (15%)",
-        "inputs": ["Доходы (руб)", "Расходы (руб)"],
-        "formula": "(a - b) * 0.15",
-        "interpretation": "Налог 15% от разницы доходов и расходов.",
-        "advice": "1. Сравните с УСН 6%\n2. Учитывайте все расходы",
-        "problems": "❌ Выбран невыгодный режим\n❌ Нет системы учёта расходов"
     }
 }
 
-# ===== 5.7. ПРОИЗВОДСТВО =====
 PRODUCTION_CALCS = {
     "oee": {
         "name": "Эффективность оборудования (OEE)",
@@ -648,18 +561,9 @@ PRODUCTION_CALCS = {
         "interpretation": "Насколько эффективно используется оборудование.",
         "advice": "1. Сократите простои\n2. Уменьшите брак",
         "problems": "❌ Частые простои оборудования\n❌ Много брака"
-    },
-    "defect_rate": {
-        "name": "Процент брака",
-        "inputs": ["Бракованные единицы", "Всего произведено"],
-        "formula": "(a / b) * 100",
-        "interpretation": "Какой процент продукции бракуется.",
-        "advice": "1. Внедрите контроль качества\n2. Обновите оборудование",
-        "problems": "❌ Много бракованной продукции\n❌ Нет системы контроля качества"
     }
 }
 
-# ===== 5.8. IT И АВТОМАТИЗАЦИЯ =====
 IT_CALCS = {
     "automation_roi": {
         "name": "ROI автоматизации",
@@ -668,18 +572,9 @@ IT_CALCS = {
         "interpretation": "Сколько процентов приносит автоматизация.",
         "advice": "1. Автоматизируйте самые болезненные процессы\n2. Обучите персонал",
         "problems": "❌ Автоматизация не окупается\n❌ Сотрудники сопротивляются"
-    },
-    "tco": {
-        "name": "Стоимость владения (TCO)",
-        "inputs": ["Внедрение (руб)", "Поддержка в год (руб)", "Срок использования (лет)"],
-        "formula": "a + b * c",
-        "interpretation": "Общие затраты на систему за весь срок.",
-        "advice": "1. Учитывайте все затраты\n2. Планируйте обновления",
-        "problems": "❌ Не учтены скрытые затраты\n❌ Нет бюджета на поддержку"
     }
 }
 
-# ===== 5.9. УПРАВЛЕНИЕ ПРОЕКТАМИ =====
 PROJECT_CALCS = {
     "spi": {
         "name": "Индекс выполнения сроков (SPI)",
@@ -688,18 +583,9 @@ PROJECT_CALCS = {
         "interpretation": "SPI > 1 — быстрее плана, < 1 — отстают.",
         "advice": "1. Корректируйте план\n2. Ускорьте критические задачи",
         "problems": "❌ Постоянное отставание от плана\n❌ Нет управления рисками"
-    },
-    "project_success": {
-        "name": "Успешность проектов",
-        "inputs": ["Успешные проекты", "Всего проектов"],
-        "formula": "(a / b) * 100",
-        "interpretation": "Какой процент проектов завершается успешно.",
-        "advice": "1. Внедрите проектное управление\n2. Обучите менеджеров",
-        "problems": "❌ Много провальных проектов\n❌ Нет методологии"
     }
 }
 
-# ===== 5.10. ЮРИДИЧЕСКИЙ ОТДЕЛ =====
 LEGAL_CALCS = {
     "contract_risk": {
         "name": "Юридические риски по договорам",
@@ -708,14 +594,6 @@ LEGAL_CALCS = {
         "interpretation": "Процент договоров с потенциальными рисками.",
         "advice": "1. Внедрите стандартные шаблоны\n2. Проводите юридический аудит",
         "problems": "❌ Много споров по договорам\n❌ Нет стандартных шаблонов"
-    },
-    "legal_claims": {
-        "name": "Судебная нагрузка",
-        "inputs": ["Количество судебных дел", "Выручка (руб)"],
-        "formula": "a / (b / 1000000)",
-        "interpretation": "Сколько судебных дел на 1 млн рублей выручки.",
-        "advice": "1. Внедрите досудебное урегулирование\n2. Проведите аудит рисков",
-        "problems": "❌ Много судебных дел\n❌ Отсутствует юридическая защита"
     }
 }
 
@@ -770,15 +648,13 @@ def calculate(formula_key, inputs):
         return None
 
 # ===================================================================
-# 7. ОСНОВНОЙ БОТ
+# 7. MIDDLEWARE ДЛЯ ПРОВЕРКИ ПОДПИСКИ
 # ===================================================================
 
-init_db()
-
-# ===== КЕШ ДЛЯ ПРОВЕРКИ ПОДПИСКИ =====
 subscription_cache = {}
 
 async def is_subscribed(user_id: int) -> bool:
+    """Проверка подписки на канал с кешированием"""
     if user_id in subscription_cache:
         result, timestamp = subscription_cache[user_id]
         if (datetime.now() - timestamp).seconds < 300:
@@ -793,7 +669,7 @@ async def is_subscribed(user_id: int) -> bool:
         
         subscription_cache[user_id] = (is_member, datetime.now())
         
-        logger.info(f"📊 Статус: {member.status} → {'подписан' if is_member else 'не подписан'}")
+        logger.info(f"📊 Статус подписки для {user_id}: {member.status}")
         return is_member
         
     except Exception as e:
@@ -801,6 +677,39 @@ async def is_subscribed(user_id: int) -> bool:
         if user_id in subscription_cache:
             return subscription_cache[user_id][0]
         return False
+
+# ===== ДЕКОРАТОР ДЛЯ ПРОВЕРКИ ПОДПИСКИ =====
+def require_subscription(func):
+    """Декоратор для проверки подписки перед выполнением команды"""
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+        user_id = update.effective_user.id
+        
+        # Админ пропускает проверку
+        if user_id == ADMIN_ID:
+            return await func(update, context, *args, **kwargs)
+        
+        # Проверяем подписку
+        subscribed = await is_subscribed(user_id)
+        if not subscribed:
+            if update.callback_query:
+                await update.callback_query.answer("❌ Подпишитесь на канал!", show_alert=True)
+                return
+            else:
+                await update.message.reply_text(
+                    "⚠️ Для доступа к калькуляторам подпишитесь на канал:",
+                    reply_markup=get_start_keyboard()
+                )
+                return
+        
+        return await func(update, context, *args, **kwargs)
+    return wrapper
+
+# ===================================================================
+# 8. ОСНОВНОЙ БОТ
+# ===================================================================
+
+init_db()
 
 def send_guide(context, user_id):
     guide_text = """📘 Гайд «Как навести порядок в бизнесе за 30 дней»
@@ -1079,6 +988,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("Калькулятор не найден.")
             return
 
+        calc_name = info['name']
+        first_input = info['inputs'][0]
+
         set_state(user_id, "calc_input", {
             "calc_key": calc_key,
             "inputs": [],
@@ -1086,17 +998,34 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "total": len(info["inputs"])
         })
 
+        text_msg = f"📊 {calc_name}\n\nВведите {first_input}:"
+
         try:
             await query.edit_message_text(
-                f"📊 {info['name']}\n\nВведите {info['inputs'][0]}:",
+                text_msg,
+                reply_markup=get_calc_input_keyboard(),  # ← КНОПКА НАЗАД
                 parse_mode=None
             )
         except Exception as e:
             logger.error(f"Ошибка: {e}")
             await query.message.reply_text(
-                f"📊 {info['name']}\n\nВведите {info['inputs'][0]}:",
+                text_msg,
+                reply_markup=get_calc_input_keyboard(),  # ← КНОПКА НАЗАД
                 parse_mode=None
             )
+        return
+
+    # ===== Отмена ввода калькулятора =====
+    if data == "cancel_calc":
+        clear_state(user_id)
+        state, state_data = get_state(user_id)
+        category = state_data.get("category", "ceo")
+        calc_list = get_calc_groups().get(category, [])
+        
+        await query.edit_message_text(
+            "❌ Ввод отменён.\n\nВыберите калькулятор:",
+            reply_markup=get_calc_list_keyboard(calc_list)
+        )
         return
 
     # ===== Назад в меню =====
@@ -1185,7 +1114,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             value = float(text.replace(",", "."))
             inputs.append(value)
         except ValueError:
-            await update.message.reply_text("❌ Введите число (например, 1000 или 1000.50):")
+            await update.message.reply_text(
+                "❌ Введите число (например, 1000 или 1000.50):",
+                reply_markup=get_calc_input_keyboard()
+            )
             return
 
         step += 1
@@ -1222,7 +1154,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "step": step,
                 "total": total
             })
-            await update.message.reply_text(f"Введите {next_input}:")
+            await update.message.reply_text(
+                f"Введите {next_input}:",
+                reply_markup=get_calc_input_keyboard()
+            )
         return
 
     if state == "waiting_email":
@@ -1278,7 +1213,7 @@ async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 # ===================================================================
-# 8. ПЛАНИРОВЩИК
+# 9. ПЛАНИРОВЩИК
 # ===================================================================
 
 async def send_touch_2(context, user_id):
@@ -1337,7 +1272,7 @@ async def check_and_send_touches(context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"❌ Ошибка обработки пользователя {user['user_id']}: {e}")
 
 # ===================================================================
-# 9. ЗАПУСК
+# 10. ЗАПУСК
 # ===================================================================
 
 def main():
@@ -1348,6 +1283,7 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).build()
 
+    # Регистрация обработчиков
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("menu", menu))
     app.add_handler(CallbackQueryHandler(button_handler))
