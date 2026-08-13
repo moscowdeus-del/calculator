@@ -1,6 +1,6 @@
 """
 БОТ «ИНЖИНИРИНГ БИЗНЕСА»
-Версия 6.2 — Исправлен для python-telegram-bot 22.x
+Версия 6.3 — Исправлены все ошибки
 """
 
 import os
@@ -27,7 +27,6 @@ from telegram.ext import (
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", " 8776638172:AAEmRGbK7ctQ9uc0OJmPdYCoDWv-cxDvXR0")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "6011810304"))
-
 CHANNEL_ID = os.environ.get("CHANNEL_ID", " -1004391759838 ")
 CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "https://t.me/old_stoic")
 SITE_LINK = os.environ.get("SITE_LINK", "https://optimasystemc.tilda.ws/")
@@ -188,8 +187,38 @@ def get_active_users():
     conn.close()
     return [dict(u) for u in users]
 
+def get_all_users_stats():
+    """Статистика по всем пользователям"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT COUNT(*) FROM users")
+    total = cursor.fetchone()[0]
+    
+    cursor.execute("SELECT COUNT(*) FROM users WHERE status = 'active'")
+    active = cursor.fetchone()[0]
+    
+    cursor.execute("SELECT COUNT(*) FROM users WHERE phone IS NOT NULL AND phone != ''")
+    with_phone = cursor.fetchone()[0]
+    
+    cursor.execute("SELECT COUNT(*) FROM users WHERE email IS NOT NULL AND email != ''")
+    with_email = cursor.fetchone()[0]
+    
+    cursor.execute("SELECT SUM(calc_counter) FROM users")
+    total_calcs = cursor.fetchone()[0] or 0
+    
+    conn.close()
+    
+    return {
+        'total': total,
+        'active': active,
+        'with_phone': with_phone,
+        'with_email': with_email,
+        'total_calcs': total_calcs
+    }
+
 # ===================================================================
-# 3. ТЕКСТЫ
+# 3. ТЕКСТЫ (ИСПРАВЛЕНЫ — УБРАНЫ ЛИШНИЕ ЗВЁЗДОЧКИ)
 # ===================================================================
 
 def welcome_text(first_name):
@@ -197,7 +226,7 @@ def welcome_text(first_name):
 
 Я помогаю собственникам МСБ наводить порядок в бизнесе. Освобождаю от операционки, строю системы, которые работают сами.
 
-Здесь я собрал для вас **бесплатные калькуляторы** — они помогут быстро оценить ключевые показатели вашего бизнеса.
+Здесь я собрал для вас бесплатные калькуляторы — они помогут быстро оценить ключевые показатели вашего бизнеса.
 
 🔒 Чтобы получить доступ ко всем калькуляторам, подпишитесь на мой канал:
 👉 {CHANNEL_LINK}
@@ -211,16 +240,16 @@ def after_subscribe_text():
 
 Теперь вам доступны все калькуляторы.
 
-Помните: **система есть везде. Даже там, где кажется, что её нет.**
+Помните: система есть везде. Даже там, где кажется, что её нет.
 
 Выберите отдел, который хотите проверить:"""
 
 def calc_result_text(name, value, interpretation, advice):
-    return f"""📊 **{name}:** {value}
+    return f"""📊 {name}: {value}
 
-📈 **Что это значит:** {interpretation}
+📈 Что это значит: {interpretation}
 
-💡 **Как улучшить:**
+💡 Как улучшить:
 {advice}
 
 🔄 Попробуйте другой калькулятор или вернитесь в меню.
@@ -232,9 +261,9 @@ def touch_2_text():
 
 Вы недавно пользовались калькуляторами. Как вам результаты? Помогли увидеть что-то новое?
 
-Я знаю, что многие собственники после расчётов говорят: *«Цифры понятны, но что делать дальше — непонятно»*.
+Я знаю, что многие собственники после расчётов говорят: «Цифры понятны, но что делать дальше — непонятно».
 
-Поэтому на моём сайте я собрал **подробные разборы** каждого показателя:
+Поэтому на моём сайте я собрал подробные разборы каждого показателя:
 ✔ Как считать правильно
 ✔ Какие ошибки чаще всего допускают
 ✔ Примеры из моей практики
@@ -251,25 +280,25 @@ def touch_3_text():
 Хочу поделиться с вами реальным кейсом из моей практики.
 
 ---
-📂 **Кейс: Производственная компания (МСБ, 45 сотрудников)**
+📂 Кейс: Производственная компания (МСБ, 45 сотрудников)
 
-**Ситуация:**
+Ситуация:
 Выручка растёт, а прибыль падает. Собственник на работе 24/7, сотрудники ждут указаний. Хаос.
 
-**Что мы сделали:**
+Что мы сделали:
 1. Провели анализ бизнес-процессов — нашли узкие места
 2. Внедрили простые регламенты для каждого отдела
 3. Настроили систему мотивации с прозрачными KPI
 4. Внедрили управленческий учёт
 
-**Результат за 3 месяца:**
+Результат за 3 месяца:
 ✔ Прибыль выросла на 34%
 ✔ Собственник перестал участвовать в каждой планерке
 ✔ Сотрудники работают без постоянного контроля
 ✔ Появилась система, которая работает сама
 
 ---
-💡 **Почему это важно:**
+💡 Почему это важно:
 У вас может быть такая же история. Порядок вместо хаоса — это реально. Я это делаю каждый день.
 
 На моём сайте есть ещё 20 таких разборов. Переходите: {SITE_LINK}"""
@@ -280,7 +309,7 @@ def touch_4_text():
 Это последнее сообщение от меня. Я не хочу вас доставать, но хочу оставить вам кое-что ценное.
 
 ---
-**Гайд «Как навести порядок в бизнесе за 30 дней»**
+Гайд «Как навести порядок в бизнесе за 30 дней»
 
 В нём я по шагам расписал:
 ✔ Как перестать быть «пожарным» в своей компании
@@ -290,12 +319,12 @@ def touch_4_text():
 Это те самые шаги, с которых начинают мои клиенты.
 
 ---
-**Как получить гайд?**
+Как получить гайд?
 
 Выберите удобный способ:
 
-1️⃣ **Поделиться контактом Telegram** (один клик) — и я сразу пришлю гайд в этот чат.
-2️⃣ **Оставить email** — я отправлю гайд на почту.
+1️⃣ Поделиться контактом Telegram (один клик) — и я сразу пришлю гайд в этот чат.
+2️⃣ Оставить email — я отправлю гайд на почту.
 
 ---
 🌐 Также вы можете:
@@ -308,7 +337,7 @@ def touch_4_text():
 def guide_sent_text(name):
     return f"""Спасибо, {name}! Гайд отправлен вам в чат ниже 📥
 
-📌 **Что ещё может быть полезным:**
+📌 Что ещё может быть полезным:
 - Мой сайт: {SITE_LINK}
 - Раздел с кейсами: {SITE_LINK}/cases
 - Мои контакты: {CONTACT_LINK}
@@ -323,7 +352,7 @@ def email_prompt():
 def email_sent_text(email):
     return f"""Спасибо! Гайд отправлен на {email} 📥
 
-📌 **Что ещё может быть полезным:**
+📌 Что ещё может быть полезным:
 - Мой сайт: {SITE_LINK}
 - Раздел с кейсами: {SITE_LINK}/cases
 - Мои контакты: {CONTACT_LINK}
@@ -333,7 +362,7 @@ def email_sent_text(email):
 До встречи!"""
 
 # ===================================================================
-# 4. КЛАВИАТУРЫ (ИСПРАВЛЕНЫ ДЛЯ python-telegram-bot 22.x)
+# 4. КЛАВИАТУРЫ
 # ===================================================================
 
 def get_start_keyboard():
@@ -352,7 +381,19 @@ def get_main_menu():
         [InlineKeyboardButton("💰 Продажи", callback_data="menu_sales")],
         [InlineKeyboardButton("📦 Логистика", callback_data="menu_logistics")],
         [InlineKeyboardButton("👥 Персонал", callback_data="menu_hr")],
-        [InlineKeyboardButton("📅 Бухгалтерия", callback_data="menu_finance")]
+        [InlineKeyboardButton("📅 Бухгалтерия", callback_data="menu_finance")],
+        [InlineKeyboardButton("📊 Статистика", callback_data="admin_stats")],
+        [InlineKeyboardButton("📋 Пользователи", callback_data="admin_users")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def get_admin_menu():
+    """Админ-меню (доступно только ADMIN_ID)"""
+    keyboard = [
+        [InlineKeyboardButton("📊 Статистика", callback_data="admin_stats")],
+        [InlineKeyboardButton("📋 Список пользователей", callback_data="admin_users")],
+        [InlineKeyboardButton("📤 Экспорт контактов", callback_data="admin_export")],
+        [InlineKeyboardButton("🔙 Назад в меню", callback_data="back_to_menu")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -482,12 +523,12 @@ CALC_FORMULAS = {
         "formula": "a / (b * 8)"
     },
     "usn_6": {
-        "name": "УСН «Доходы» (6%)",
+        "name": "УСН Доходы (6%)",
         "inputs": ["Доходы (руб)"],
         "formula": "a * 0.06"
     },
     "usn_15": {
-        "name": "УСН «Доходы минус расходы» (15%)",
+        "name": "УСН Доходы минус расходы (15%)",
         "inputs": ["Доходы (руб)", "Расходы (руб)"],
         "formula": "(a - b) * 0.15"
     },
@@ -522,17 +563,17 @@ def get_interpretation(formula_key, value):
         "cash_flow": "Положительный поток — бизнес генерирует деньги. Отрицательный — сжигает.",
         "cac": "Стоимость привлечения клиента. Должна быть ниже LTV.",
         "ltv": "Пожизненная ценность клиента. Чем выше, тем больше можно вложить в привлечение.",
-        "romi": "Окупаемость маркетинга: >200% — отлично, <100% — проблема.",
+        "romi": "Окупаемость маркетинга: более 200% — отлично, менее 100% — проблема.",
         "conversion": "Конверсия показывает эффективность воронки продаж.",
-        "closure": "Коэффициент закрытия: >30% — отлично, <15% — сигнал.",
+        "closure": "Коэффициент закрытия: более 30% — отлично, менее 15% — сигнал.",
         "avg_check": "Средний чек — один из ключевых драйверов прибыли.",
         "turnover": "Оборачиваемость запасов: чем выше, тем меньше денег заморожено.",
         "turnover_days": "Длительность оборота: чем меньше дней, тем эффективнее склад.",
-        "employee_turnover": "Текучесть: <10% — отлично, >20% — сигнал.",
+        "employee_turnover": "Текучесть: менее 10% — отлично, более 20% — сигнал.",
         "productivity": "Производительность труда: сколько выручки приносит один сотрудник.",
         "hour_cost": "Стоимость часа работы сотрудника.",
-        "usn_6": "Налог по УСН «Доходы» — 6% от выручки.",
-        "usn_15": "Налог по УСН «Доходы минус расходы» — 15% от разницы.",
+        "usn_6": "Налог по УСН Доходы — 6% от выручки.",
+        "usn_15": "Налог по УСН Доходы минус расходы — 15% от разницы.",
         "nds": "Сумма с НДС 20%."
     }
     return interpretations.get(formula_key, "Показатель рассчитан.")
@@ -551,7 +592,7 @@ def get_advice(formula_key, value):
         "conversion": "1. Проверьте юзабилити сайта\n2. Улучшите оффер\n3. Настройте ретаргетинг",
         "closure": "1. Проверьте квалификацию лидов\n2. Обучите менеджеров\n3. Анализируйте проигранные сделки",
         "avg_check": "1. Предлагайте доп. товары/услуги\n2. Внедрите систему скидок\n3. Используйте апсейл",
-        "turnover": "1. Проведите ABC-анализ\n2. Сократите заказы по медленным товарам\n3. Используйте систему «точно в срок»",
+        "turnover": "1. Проведите ABC-анализ\n2. Сократите заказы по медленным товарам\n3. Используйте систему точно в срок",
         "turnover_days": "1. Заменяйте медленные товары\n2. Настройте авто-заказ по остаткам\n3. Проводите акции на залежавшийся товар",
         "employee_turnover": "1. Проведите exit-интервью\n2. Внедрите прозрачную мотивацию\n3. Проверьте адаптацию",
         "productivity": "1. Автоматизируйте ручные процессы\n2. Обучите сотрудников\n3. Внедрите KPI",
@@ -592,8 +633,8 @@ def get_calc_groups():
             ("hour_cost", "Стоимость часа работы")
         ],
         "finance": [
-            ("usn_6", "УСН «Доходы» (6%)"),
-            ("usn_15", "УСН «Доходы минус расходы» (15%)"),
+            ("usn_6", "УСН Доходы (6%)"),
+            ("usn_15", "УСН Доходы минус расходы (15%)"),
             ("nds", "НДС 20%")
         ]
     }
@@ -611,36 +652,52 @@ init_db()
 calc_data = {}
 
 def is_subscribed(user_id):
-    """Проверка подписки на канал"""
+    """Проверка подписки на канал (синхронная версия)"""
     try:
-        # Создаём временное приложение для проверки
-        app = Application.builder().token(BOT_TOKEN).build()
-        status = app.bot.get_chat_member(CHANNEL_ID, user_id).status
-        return status in ['member', 'administrator', 'creator']
+        # Создаём временный экземпляр приложения
+        import asyncio
+        from telegram import Bot
+        
+        async def check():
+            bot = Bot(token=BOT_TOKEN)
+            try:
+                member = await bot.get_chat_member(CHANNEL_ID, user_id)
+                return member.status in ['member', 'administrator', 'creator']
+            except Exception as e:
+                logger.error(f"Ошибка проверки подписки: {e}")
+                return False
+            finally:
+                await bot.close()
+        
+        # Запускаем асинхронную функцию синхронно
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(check())
+        loop.close()
+        return result
+        
     except Exception as e:
         logger.error(f"Ошибка проверки подписки: {e}")
         return False
 
 def send_guide(context, user_id):
     """Отправка гайда пользователю"""
-    guide_text = f"""📘 **Гайд «Как навести порядок в бизнесе за 30 дней»**
+    guide_text = f"""📘 Гайд «Как навести порядок в бизнесе за 30 дней»
 
-*Вступление*
+Вступление
 Меня зовут Георгий. Я помогаю собственникам МСБ наводить порядок в бизнесе.
 
 Этот гайд — не теория. Это пошаговый план, который я проверял на десятках проектов.
 
 ---
-
-**Глава 1. Диагностика хаоса (Дни 1–3)**
+Глава 1. Диагностика хаоса (Дни 1-3)
 
 1. Нарисуйте карту процессов
 2. Проведите аудит времени
 3. Сделайте финансовый срез
 
 ---
-
-**Глава 2. Наведение порядка (Дни 4–14)**
+Глава 2. Наведение порядка (Дни 4-14)
 
 1. Внедрите управленческий учёт
 2. Создайте регламенты и инструкции
@@ -648,16 +705,14 @@ def send_guide(context, user_id):
 4. Назначьте зоны ответственности
 
 ---
-
-**Глава 3. Автоматизация и контроль (Дни 15–21)**
+Глава 3. Автоматизация и контроль (Дни 15-21)
 
 1. Внедрите точки контроля
 2. Используйте цифровые инструменты
 3. Начните делегировать задачи
 
 ---
-
-**Глава 4. Устойчивая система (Дни 22–30)**
+Глава 4. Устойчивая система (Дни 22-30)
 
 1. Проведите тренинг для сотрудников
 2. Соберите обратную связь
@@ -665,20 +720,19 @@ def send_guide(context, user_id):
 4. Наслаждайтесь свободой
 
 ---
-
-*Поздравляю! Вы прошли путь от хаоса к системе.*
+Поздравляю! Вы прошли путь от хаоса к системе.
 
 Если вы чувствуете, что не справляетесь самостоятельно — я рядом.
 
-**Свяжитесь со мной:**
+Свяжитесь со мной:
 - Telegram: {CONTACT_LINK}
 - Сайт: {SITE_LINK}
 
-*Помните: система есть везде. Даже там, где кажется, что её нет.*
+Помните: система есть везде. Даже там, где кажется, что её нет.
 
-*Георгий, 10+ лет в операционном консалтинге*"""
+Георгий, 10+ лет в операционном консалтинге"""
 
-    context.bot.send_message(user_id, guide_text, parse_mode='Markdown')
+    context.bot.send_message(user_id, guide_text, parse_mode=None)
 
 # ===== ОБРАБОТЧИКИ КОМАНД =====
 
@@ -693,15 +747,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user:
         create_user(user_id, first_name, last_name, username)
 
+    # Если это админ — показываем админ-меню
+    if user_id == ADMIN_ID:
+        await update.message.reply_text(
+            "👋 Добро пожаловать в админ-панель!\n\nВыберите действие:",
+            reply_markup=get_admin_menu()
+        )
+        return
+
     await update.message.reply_text(
         welcome_text(first_name),
         reply_markup=get_start_keyboard(),
-        parse_mode='Markdown'
+        parse_mode=None
     )
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /menu"""
     user_id = update.effective_user.id
+    
+    # Если админ — показываем админ-меню
+    if user_id == ADMIN_ID:
+        await update.message.reply_text(
+            "👋 Админ-панель:\n\nВыберите действие:",
+            reply_markup=get_admin_menu()
+        )
+        return
     
     if not is_subscribed(user_id):
         await update.message.reply_text(
@@ -713,7 +783,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         after_subscribe_text(),
         reply_markup=get_main_menu(),
-        parse_mode='Markdown'
+        parse_mode=None
     )
 
 # ===== ОБРАБОТЧИКИ КНОПОК =====
@@ -726,7 +796,112 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     data = query.data
 
-    # Проверка подписки
+    # ===== АДМИН-КНОПКИ =====
+    if data == "admin_stats":
+        if user_id != ADMIN_ID:
+            await query.answer("⛔ Нет доступа")
+            return
+        
+        stats = get_all_users_stats()
+        text = f"""📊 Статистика бота
+
+👥 Всего пользователей: {stats['total']}
+🟢 Активных: {stats['active']}
+📱 С телефоном: {stats['with_phone']}
+✉️ С email: {stats['with_email']}
+🧮 Всего расчётов: {stats['total_calcs']}
+
+📅 {datetime.now().strftime('%d.%m.%Y %H:%M')}"""
+        
+        await query.edit_message_text(
+            text,
+            reply_markup=get_admin_menu(),
+            parse_mode=None
+        )
+        return
+
+    if data == "admin_users":
+        if user_id != ADMIN_ID:
+            await query.answer("⛔ Нет доступа")
+            return
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT user_id, first_name, username, phone, email, calc_counter, first_contact 
+            FROM users 
+            ORDER BY first_contact DESC 
+            LIMIT 20
+        """)
+        users = cursor.fetchall()
+        conn.close()
+        
+        if not users:
+            await query.edit_message_text(
+                "📋 Пользователей пока нет",
+                reply_markup=get_admin_menu()
+            )
+            return
+        
+        text = "📋 Последние 20 пользователей:\n\n"
+        for user in users:
+            name = user['first_name'] or "Без имени"
+            username = f"@{user['username']}" if user['username'] else "—"
+            phone = user['phone'] or "—"
+            email = user['email'] or "—"
+            calcs = user['calc_counter'] or 0
+            date = user['first_contact'][:16] if user['first_contact'] else "—"
+            text += f"👤 {name} ({username})\n"
+            text += f"   📱 {phone} | ✉️ {email}\n"
+            text += f"   🧮 {calcs} расч. | 📅 {date}\n\n"
+        
+        await query.edit_message_text(
+            text,
+            reply_markup=get_admin_menu(),
+            parse_mode=None
+        )
+        return
+
+    if data == "admin_export":
+        if user_id != ADMIN_ID:
+            await query.answer("⛔ Нет доступа")
+            return
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT first_name, phone, email, username, created_at 
+            FROM contacts 
+            ORDER BY created_at DESC
+        """)
+        contacts = cursor.fetchall()
+        conn.close()
+        
+        if not contacts:
+            await query.edit_message_text(
+                "📤 Контактов пока нет",
+                reply_markup=get_admin_menu()
+            )
+            return
+        
+        # Формируем CSV
+        csv = "Имя;Телефон;Email;Telegram;Дата\n"
+        for c in contacts:
+            csv += f"{c['first_name'] or ''};{c['phone'] or ''};{c['email'] or ''};{c['username'] or ''};{c['created_at'] or ''}\n"
+        
+        # Отправляем файлом
+        await query.edit_message_text(
+            "📤 Экспорт контактов готов!",
+            reply_markup=get_admin_menu()
+        )
+        await context.bot.send_document(
+            chat_id=user_id,
+            document=('contacts.csv', csv.encode('utf-8-sig')),
+            filename='contacts.csv'
+        )
+        return
+
+    # ===== Проверка подписки =====
     if data == "check_sub":
         if is_subscribed(user_id):
             update_user(user_id, subscribed=1)
@@ -734,18 +909,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.edit_message_text(
                     after_subscribe_text(),
                     reply_markup=get_main_menu(),
-                    parse_mode='Markdown'
+                    parse_mode=None
                 )
             except:
                 await query.message.reply_text(
                     after_subscribe_text(),
                     reply_markup=get_main_menu(),
-                    parse_mode='Markdown'
+                    parse_mode=None
                 )
         else:
             await query.answer("❌ Вы не подписаны. Подпишитесь и нажмите 'Проверить' снова.")
 
-    # Меню
+    # ===== Меню =====
     elif data.startswith("menu_"):
         category = data.replace("menu_", "")
         calc_list = get_calc_groups().get(category, [])
@@ -764,7 +939,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await query.answer("Калькуляторов пока нет в этом разделе.")
 
-    # Выбор калькулятора
+    # ===== Выбор калькулятора =====
     elif data.startswith("calc_"):
         calc_key = data.replace("calc_", "")
         info = get_calc_info(calc_key)
@@ -781,32 +956,39 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         try:
             await query.edit_message_text(
-                f"📊 **{info['name']}**\n\nВведите {info['inputs'][0]}:",
-                parse_mode='Markdown'
+                f"📊 {info['name']}\n\nВведите {info['inputs'][0]}:",
+                parse_mode=None
             )
         except:
             await query.message.reply_text(
-                f"📊 **{info['name']}**\n\nВведите {info['inputs'][0]}:",
-                parse_mode='Markdown'
+                f"📊 {info['name']}\n\nВведите {info['inputs'][0]}:",
+                parse_mode=None
             )
 
-    # Назад в меню
+    # ===== Назад в меню =====
     elif data == "back_to_menu":
         clear_state(user_id)
+        if user_id == ADMIN_ID:
+            text = "👋 Админ-панель:\n\nВыберите действие:"
+            reply_markup = get_admin_menu()
+        else:
+            text = after_subscribe_text()
+            reply_markup = get_main_menu()
+        
         try:
             await query.edit_message_text(
-                after_subscribe_text(),
-                reply_markup=get_main_menu(),
-                parse_mode='Markdown'
+                text,
+                reply_markup=reply_markup,
+                parse_mode=None
             )
         except:
             await query.message.reply_text(
-                after_subscribe_text(),
-                reply_markup=get_main_menu(),
-                parse_mode='Markdown'
+                text,
+                reply_markup=reply_markup,
+                parse_mode=None
             )
 
-    # Назад к категории
+    # ===== Назад к категории =====
     elif data == "back_to_category":
         state, state_data = get_state(user_id)
         category = state_data.get("category", "ceo")
@@ -822,14 +1004,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=get_calc_list_keyboard(calc_list)
             )
 
-    # Запрос контакта
+    # ===== Запрос контакта =====
     elif data == "request_contact":
         await query.message.reply_text(
             "📱 Нажмите кнопку ниже, чтобы поделиться контактом:",
             reply_markup=get_contact_request_keyboard()
         )
 
-    # Запрос email
+    # ===== Запрос email =====
     elif data == "request_email":
         set_state(user_id, "waiting_email", {})
         await query.message.reply_text(
@@ -890,7 +1072,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 calc_result_text(info['name'], result_str, interpretation, advice),
                 reply_markup=get_after_calc_keyboard(),
-                parse_mode='Markdown'
+                parse_mode=None
             )
             clear_state(user_id)
 
@@ -918,7 +1100,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             update_user(user_id, email=text)
             clear_state(user_id)
-            await update.message.reply_text(email_sent_text(text), parse_mode='Markdown')
+            await update.message.reply_text(email_sent_text(text), parse_mode=None)
             send_guide(context, user_id)
         else:
             await update.message.reply_text("❌ Введите корректный email (например, name@domain.com):")
@@ -953,7 +1135,7 @@ async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             guide_sent_text(first_name),
             reply_markup=ReplyKeyboardRemove(),
-            parse_mode='Markdown'
+            parse_mode=None
         )
         send_guide(context, user_id)
     else:
@@ -967,7 +1149,7 @@ async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def send_touch_2(context, user_id):
     try:
-        await context.bot.send_message(user_id, touch_2_text(), parse_mode='Markdown')
+        await context.bot.send_message(user_id, touch_2_text(), parse_mode=None)
         update_user(user_id, touch_2_sent=1)
         logger.info(f"✅ Касание 2 отправлено пользователю {user_id}")
     except Exception as e:
@@ -975,7 +1157,7 @@ async def send_touch_2(context, user_id):
 
 async def send_touch_3(context, user_id):
     try:
-        await context.bot.send_message(user_id, touch_3_text(), parse_mode='Markdown')
+        await context.bot.send_message(user_id, touch_3_text(), parse_mode=None)
         update_user(user_id, touch_3_sent=1)
         logger.info(f"✅ Касание 3 отправлено пользователю {user_id}")
     except Exception as e:
@@ -987,7 +1169,7 @@ async def send_touch_4(context, user_id):
             user_id,
             touch_4_text(),
             reply_markup=get_contact_keyboard(),
-            parse_mode='Markdown'
+            parse_mode=None
         )
         update_user(user_id, touch_4_sent=1)
         logger.info(f"✅ Касание 4 отправлено пользователю {user_id}")
@@ -1000,6 +1182,10 @@ async def check_and_send_touches(context: ContextTypes.DEFAULT_TYPE):
     now = datetime.now()
 
     for user in users:
+        # Пропускаем админа
+        if user['user_id'] == ADMIN_ID:
+            continue
+            
         try:
             first_contact = datetime.fromisoformat(user['first_contact'])
             days_passed = (now - first_contact).days
@@ -1024,15 +1210,17 @@ async def check_and_send_touches(context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """Запуск бота"""
-    logger.info("🚀 Бот «Инжиниринг бизнеса» запущен!")
+    logger.info("🚀 Бот Инжиниринг бизнеса запущен!")
     logger.info(f"📢 Канал: {CHANNEL_LINK}")
     logger.info(f"🌐 Сайт: {SITE_LINK}")
+    logger.info(f"👑 Админ ID: {ADMIN_ID}")
 
     app = Application.builder().token(BOT_TOKEN).build()
 
     # Регистрация обработчиков
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("menu", menu))
+    app.add_handler(CommandHandler("admin", menu))  # /admin тоже ведёт в админку
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_handler(MessageHandler(filters.CONTACT, handle_contact))
@@ -1043,7 +1231,7 @@ def main():
         job_queue.run_repeating(check_and_send_touches, interval=1800, first=60)
         logger.info("⏰ Планировщик запущен. Проверка каждые 30 минут...")
 
-    logger.info("✅ Бот готов к работе на BotHost.ru!")
+    logger.info("✅ Бот готов к работе!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
