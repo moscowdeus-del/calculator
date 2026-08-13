@@ -1,6 +1,6 @@
 """
 БОТ «ИНЖИНИРИНГ БИЗНЕСА»
-Версия 6.7 — Исправлена проверка подписки
+Версия 6.9 — ФИНАЛЬНАЯ
 """
 
 import os
@@ -649,15 +649,27 @@ def get_calc_info(calc_key):
 
 init_db()
 
-# ===== ПРОВЕРКА ПОДПИСКИ (АСИНХРОННАЯ) =====
+# ===== ПРОВЕРКА ПОДПИСКИ =====
 async def is_subscribed(user_id: int) -> bool:
-    """Асинхронная проверка подписки на канал"""
+    """Проверка подписки на канал"""
     try:
-        bot = Application.builder().token(BOT_TOKEN).build().bot
+        # Создаём приложение
+        app = Application.builder().token(BOT_TOKEN).build()
+        bot = app.bot
+        
+        # Логируем
+        logger.info(f"🔍 Проверка канала: {CHANNEL_ID}")
+        
+        # Проверяем участника
         member = await bot.get_chat_member(CHANNEL_ID, user_id)
-        return member.status in ['member', 'administrator', 'creator']
+        is_member = member.status in ['member', 'administrator', 'creator']
+        
+        logger.info(f"📊 Статус: {member.status} → {'✅ подписан' if is_member else '❌ не подписан'}")
+        await bot.close()
+        return is_member
+        
     except Exception as e:
-        logger.error(f"Ошибка проверки подписки: {e}")
+        logger.error(f"❌ Ошибка проверки подписки: {e}")
         return False
 
 def send_guide(context, user_id):
@@ -1202,11 +1214,6 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_handler(MessageHandler(filters.CONTACT, handle_contact))
-
-    job_queue = app.job_queue
-    if job_queue:
-        job_queue.run_repeating(check_and_send_touches, interval=1800, first=60)
-        logger.info("⏰ Планировщик запущен. Проверка каждые 30 минут...")
 
     logger.info("✅ Бот готов к работе!")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
