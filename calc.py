@@ -1,6 +1,6 @@
 """
 БОТ «ИНЖИНИРИНГ БИЗНЕСА»
-Версия 6.1 — Адаптирован для BotHost.ru
+Версия 6.2 — Исправлен для python-telegram-bot 22.x
 """
 
 import os
@@ -333,57 +333,63 @@ def email_sent_text(email):
 До встречи!"""
 
 # ===================================================================
-# 4. КЛАВИАТУРЫ
+# 4. КЛАВИАТУРЫ (ИСПРАВЛЕНЫ ДЛЯ python-telegram-bot 22.x)
 # ===================================================================
 
 def get_start_keyboard():
-    keyboard = InlineKeyboardMarkup(row_width=1)
-    keyboard.add(
-        InlineKeyboardButton("📢 Подписаться", url=CHANNEL_LINK),
-        InlineKeyboardButton("✅ Проверить подписку", callback_data="check_sub")
-    )
-    return keyboard
+    """Клавиатура для старта"""
+    keyboard = [
+        [InlineKeyboardButton("📢 Подписаться", url=CHANNEL_LINK)],
+        [InlineKeyboardButton("✅ Проверить подписку", callback_data="check_sub")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 def get_main_menu():
-    keyboard = InlineKeyboardMarkup(row_width=2)
-    keyboard.add(
-        InlineKeyboardButton("📊 Общий финансовый", callback_data="menu_ceo"),
-        InlineKeyboardButton("📈 Маркетинг", callback_data="menu_marketing"),
-        InlineKeyboardButton("💰 Продажи", callback_data="menu_sales"),
-        InlineKeyboardButton("📦 Логистика", callback_data="menu_logistics"),
-        InlineKeyboardButton("👥 Персонал", callback_data="menu_hr"),
-        InlineKeyboardButton("📅 Бухгалтерия", callback_data="menu_finance"),
-    )
-    return keyboard
+    """Главное меню"""
+    keyboard = [
+        [InlineKeyboardButton("📊 Общий финансовый", callback_data="menu_ceo")],
+        [InlineKeyboardButton("📈 Маркетинг", callback_data="menu_marketing")],
+        [InlineKeyboardButton("💰 Продажи", callback_data="menu_sales")],
+        [InlineKeyboardButton("📦 Логистика", callback_data="menu_logistics")],
+        [InlineKeyboardButton("👥 Персонал", callback_data="menu_hr")],
+        [InlineKeyboardButton("📅 Бухгалтерия", callback_data="menu_finance")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 def get_calc_list_keyboard(calc_list):
-    keyboard = InlineKeyboardMarkup(row_width=1)
+    """Клавиатура со списком калькуляторов"""
+    keyboard = []
     for key, name in calc_list:
-        keyboard.add(InlineKeyboardButton(name, callback_data=f"calc_{key}"))
-    keyboard.add(InlineKeyboardButton("⬅ Назад к категориям", callback_data="back_to_menu"))
-    return keyboard
+        keyboard.append([InlineKeyboardButton(name, callback_data=f"calc_{key}")])
+    keyboard.append([InlineKeyboardButton("⬅ Назад к категориям", callback_data="back_to_menu")])
+    return InlineKeyboardMarkup(keyboard)
 
 def get_after_calc_keyboard():
-    keyboard = InlineKeyboardMarkup(row_width=2)
-    keyboard.add(
-        InlineKeyboardButton("🔄 Другой калькулятор", callback_data="back_to_category"),
-        InlineKeyboardButton("🏠 В меню", callback_data="back_to_menu")
-    )
-    keyboard.add(InlineKeyboardButton("🌐 Перейти на сайт", url=SITE_LINK))
-    return keyboard
+    """Клавиатура после расчёта"""
+    keyboard = [
+        [
+            InlineKeyboardButton("🔄 Другой калькулятор", callback_data="back_to_category"),
+            InlineKeyboardButton("🏠 В меню", callback_data="back_to_menu")
+        ],
+        [InlineKeyboardButton("🌐 Перейти на сайт", url=SITE_LINK)]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 def get_contact_keyboard():
-    keyboard = InlineKeyboardMarkup(row_width=1)
-    keyboard.add(InlineKeyboardButton("📱 Поделиться контактом", callback_data="request_contact"))
-    keyboard.add(InlineKeyboardButton("✉️ Оставить email", callback_data="request_email"))
-    keyboard.add(InlineKeyboardButton("🌐 Перейти на сайт", url=SITE_LINK))
-    return keyboard
+    """Клавиатура для запроса контакта"""
+    keyboard = [
+        [InlineKeyboardButton("📱 Поделиться контактом", callback_data="request_contact")],
+        [InlineKeyboardButton("✉️ Оставить email", callback_data="request_email")],
+        [InlineKeyboardButton("🌐 Перейти на сайт", url=SITE_LINK)]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 def get_contact_request_keyboard():
-    keyboard = ReplyKeyboardMarkup(row_width=1, resize_keyboard=True, one_time_keyboard=True)
-    button = KeyboardButton("📱 Отправить контакт", request_contact=True)
-    keyboard.add(button)
-    return keyboard
+    """Клавиатура с кнопкой запроса контакта"""
+    keyboard = [
+        [KeyboardButton("📱 Отправить контакт", request_contact=True)]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
 
 # ===================================================================
 # 5. КАЛЬКУЛЯТОРЫ
@@ -607,8 +613,9 @@ calc_data = {}
 def is_subscribed(user_id):
     """Проверка подписки на канал"""
     try:
-        bot = Application.builder().token(BOT_TOKEN).build()
-        status = bot.bot.get_chat_member(CHANNEL_ID, user_id).status
+        # Создаём временное приложение для проверки
+        app = Application.builder().token(BOT_TOKEN).build()
+        status = app.bot.get_chat_member(CHANNEL_ID, user_id).status
         return status in ['member', 'administrator', 'creator']
     except Exception as e:
         logger.error(f"Ошибка проверки подписки: {e}")
@@ -955,7 +962,7 @@ async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 # ===================================================================
-# 7. ПЛАНИРОВЩИК (АВТОМАТИЧЕСКИЕ КАСАНИЯ) - для BotHost
+# 7. ПЛАНИРОВЩИК
 # ===================================================================
 
 async def send_touch_2(context, user_id):
