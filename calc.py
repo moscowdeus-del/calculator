@@ -1,6 +1,6 @@
 """
 БОТ «ИНЖИНИРИНГ БИЗНЕСА»
-Версия 7.0 — ФИНАЛЬНАЯ С КЕШИРОВАНИЕМ
+Версия 7.1 — ИСПРАВЛЕНА ОШИБКА СИНТАКСИСА
 """
 
 import os
@@ -655,10 +655,9 @@ subscription_cache = {}
 async def is_subscribed(user_id: int) -> bool:
     """Проверка подписки на канал с кешированием (5 минут)"""
     
-    # Проверяем кеш
     if user_id in subscription_cache:
         result, timestamp = subscription_cache[user_id]
-        if (datetime.now() - timestamp).seconds < 300:  # 5 минут
+        if (datetime.now() - timestamp).seconds < 300:
             return result
     
     try:
@@ -668,7 +667,6 @@ async def is_subscribed(user_id: int) -> bool:
         member = await bot.get_chat_member(CHANNEL_ID, user_id)
         is_member = member.status in ['member', 'administrator', 'creator']
         
-        # Сохраняем в кеш
         subscription_cache[user_id] = (is_member, datetime.now())
         
         logger.info(f"📊 Статус: {member.status} → {'✅ подписан' if is_member else '❌ не подписан'}")
@@ -676,7 +674,6 @@ async def is_subscribed(user_id: int) -> bool:
         
     except Exception as e:
         logger.error(f"❌ Ошибка проверки подписки: {e}")
-        # При ошибке возвращаем из кеша, если есть
         if user_id in subscription_cache:
             return subscription_cache[user_id][0]
         return False
@@ -930,7 +927,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # ===== Меню =====
-    elif data.startswith("menu_"):
+    if data.startswith("menu_"):
         category = data.replace("menu_", "")
         calc_list = get_calc_groups().get(category, [])
         if calc_list:
@@ -947,9 +944,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
         else:
             await query.answer("Калькуляторов пока нет в этом разделе.")
+        return
 
     # ===== Выбор калькулятора =====
-    elif data.startswith("calc_"):
+    if data.startswith("calc_"):
         calc_key = data.replace("calc_", "")
         info = get_calc_info(calc_key)
         if not info:
@@ -973,9 +971,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📊 {info['name']}\n\nВведите {info['inputs'][0]}:",
                 parse_mode=None
             )
+        return
 
     # ===== Назад в меню =====
-    elif data == "back_to_menu":
+    if data == "back_to_menu":
         clear_state(user_id)
         if user_id == ADMIN_ID:
             text = "👋 Выберите раздел для расчётов или перейдите в админ-панель:"
@@ -996,9 +995,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=reply_markup,
                 parse_mode=None
             )
+        return
 
     # ===== Назад к категории =====
-    elif data == "back_to_category":
+    if data == "back_to_category":
         state, state_data = get_state(user_id)
         category = state_data.get("category", "ceo")
         calc_list = get_calc_groups().get(category, [])
@@ -1012,24 +1012,26 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Выберите калькулятор:",
                 reply_markup=get_calc_list_keyboard(calc_list)
             )
+        return
 
     # ===== Запрос контакта =====
-    elif data == "request_contact":
+    if data == "request_contact":
         await query.message.reply_text(
             "📱 Нажмите кнопку ниже, чтобы поделиться контактом:",
             reply_markup=get_contact_request_keyboard()
         )
+        return
 
     # ===== Запрос email =====
-    elif data == "request_email":
+    if data == "request_email":
         set_state(user_id, "waiting_email", {})
         await query.message.reply_text(
             email_prompt(),
             reply_markup=ReplyKeyboardRemove()
         )
+        return
 
-    else:
-        await query.answer("Действие не распознано.")
+    await query.answer("Действие не распознано.")
 
 # ===== ОБРАБОТЧИКИ СООБЩЕНИЙ =====
 
@@ -1094,7 +1096,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"Введите {next_input}:")
         return
 
-    elif state == "waiting_email":
+    if state == "waiting_email":
         if re.match(r'^[^@]+@[^@]+\.[^@]+$', text):
             user = get_user(user_id)
             save_contact(
@@ -1112,10 +1114,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Введите корректный email (например, name@domain.com):")
         return
 
-    else:
-        await update.message.reply_text(
-            "Я не понимаю эту команду. Используйте /menu для доступа к калькуляторам."
-        )
+    await update.message.reply_text(
+        "Я не понимаю эту команду. Используйте /menu для доступа к калькуляторам."
+    )
 
 async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
