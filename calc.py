@@ -1,6 +1,6 @@
 """
 БОТ «ИНЖИНИРИНГ БИЗНЕСА»
-Версия 6.9 — ФИНАЛЬНАЯ
+Версия 7.0 — ФИНАЛЬНАЯ С КЕШИРОВАНИЕМ
 """
 
 import os
@@ -649,27 +649,36 @@ def get_calc_info(calc_key):
 
 init_db()
 
-# ===== ПРОВЕРКА ПОДПИСКИ =====
+# ===== КЕШ ДЛЯ ПРОВЕРКИ ПОДПИСКИ =====
+subscription_cache = {}
+
 async def is_subscribed(user_id: int) -> bool:
-    """Проверка подписки на канал"""
+    """Проверка подписки на канал с кешированием (5 минут)"""
+    
+    # Проверяем кеш
+    if user_id in subscription_cache:
+        result, timestamp = subscription_cache[user_id]
+        if (datetime.now() - timestamp).seconds < 300:  # 5 минут
+            return result
+    
     try:
-        # Создаём приложение
         app = Application.builder().token(BOT_TOKEN).build()
         bot = app.bot
         
-        # Логируем
-        logger.info(f"🔍 Проверка канала: {CHANNEL_ID}")
-        
-        # Проверяем участника
         member = await bot.get_chat_member(CHANNEL_ID, user_id)
         is_member = member.status in ['member', 'administrator', 'creator']
         
+        # Сохраняем в кеш
+        subscription_cache[user_id] = (is_member, datetime.now())
+        
         logger.info(f"📊 Статус: {member.status} → {'✅ подписан' if is_member else '❌ не подписан'}")
-        await bot.close()
         return is_member
         
     except Exception as e:
         logger.error(f"❌ Ошибка проверки подписки: {e}")
+        # При ошибке возвращаем из кеша, если есть
+        if user_id in subscription_cache:
+            return subscription_cache[user_id][0]
         return False
 
 def send_guide(context, user_id):
@@ -899,21 +908,26 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # ===== ПРОВЕРКА ПОДПИСКИ =====
-async def is_subscribed(user_id: int) -> bool:
-    """Проверка подписки на канал"""
-    try:
-        app = Application.builder().token(BOT_TOKEN).build()
-        bot = app.bot
-        
-        member = await bot.get_chat_member(CHANNEL_ID, user_id)
-        is_member = member.status in ['member', 'administrator', 'creator']
-        
-        logger.info(f"📊 Статус: {member.status} → {'✅ подписан' if is_member else '❌ не подписан'}")
-        return is_member
-        
-    except Exception as e:
-        logger.error(f"❌ Ошибка проверки подписки: {e}")
-        return False
+    if data == "check_sub":
+        subscribed = await is_subscribed(user_id)
+        if subscribed:
+            update_user(user_id, subscribed=1)
+            try:
+                await query.edit_message_text(
+                    after_subscribe_text(),
+                    reply_markup=get_main_menu_with_admin() if user_id == ADMIN_ID else get_main_menu(),
+                    parse_mode=None
+                )
+            except Exception as e:
+                logger.error(f"Ошибка редактирования: {e}")
+                await query.message.reply_text(
+                    after_subscribe_text(),
+                    reply_markup=get_main_menu_with_admin() if user_id == ADMIN_ID else get_main_menu(),
+                    parse_mode=None
+                )
+        else:
+            await query.answer("❌ Вы не подписаны. Подпишитесь на канал и нажмите 'Проверить' снова.", show_alert=True)
+        return
 
     # ===== Меню =====
     elif data.startswith("menu_"):
