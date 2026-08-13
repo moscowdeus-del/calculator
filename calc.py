@@ -25,12 +25,12 @@ from telegram.ext import (
 # 1. КОНФИГУРАЦИЯ
 # ===================================================================
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", " 8776638172:AAEmRGbK7ctQ9uc0OJmPdYCoDWv-cxDvXR0")
-ADMIN_ID = int(os.environ.get("ADMIN_ID", "6011810304"))
-CHANNEL_ID = os.environ.get("CHANNEL_ID", " -1004391759838 ")
-CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "https://t.me/old_stoic")
-SITE_LINK = os.environ.get("SITE_LINK", "https://optimasystemc.tilda.ws/")
-CONTACT_LINK = os.environ.get("CONTACT_LINK", "@deus_s")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "
+ADMIN_ID = int(os.environ.get("ADMIN_ID", "6
+CHANNEL_ID = os.environ.get("CHANNEL_ID", " -
+CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "h
+SITE_LINK = os.environ.get("SITE_LINK", "https://")
+CONTACT_LINK = os.environ.get("CONTACT_LINK", 
 
 TOUCH_2_DELAY = int(os.environ.get("TOUCH_2_DELAY", "2"))
 TOUCH_3_DELAY = int(os.environ.get("TOUCH_3_DELAY", "5"))
@@ -422,18 +422,59 @@ def get_admin_menu():
     return InlineKeyboardMarkup(keyboard)
 
 # ===== ИСПРАВЛЕНА ФУНКЦИЯ =====
+# ===== ИСПРАВЛЕННАЯ ФУНКЦИЯ get_calc_list_keyboard() =====
 def get_calc_list_keyboard(calc_list):
-    """Клавиатура со списком калькуляторов (ИСПРАВЛЕНА)"""
+    """
+    Генерирует клавиатуру со списком калькуляторов.
+    
+    ✅ Правильная распаковка: (key, calc_data_dict)
+    ✅ Безопасное извлечение названия
+    ✅ Обработка ошибок и исключений
+    """
     keyboard = []
+    
+    if not calc_list:
+        keyboard.append([InlineKeyboardButton("🏠 В главное меню", callback_data="back_to_menu")])
+        return InlineKeyboardMarkup(keyboard)
+    
     for item in calc_list:
-        # item = ("net_profit", {"name": "Чистая прибыль", ...})
-        if isinstance(item, tuple) and len(item) == 2:
-            key, calc_dict = item  # ← ПРАВИЛЬНАЯ РАСПАКОВКА!
-            calc_name = calc_dict.get('name', str(key))  # ← БЕРЁМ name ИЗ СЛОВАРЯ!
-            keyboard.append([InlineKeyboardButton(str(calc_name), callback_data=f"calc_{str(key)}")])
-        else:
+        try:
+            # ✅ ПРАВИЛЬНАЯ РАСПАКОВКА
+            # item = ("net_profit", {"name": "Чистая прибыль", ...})
+            if not isinstance(item, tuple) or len(item) != 2:
+                logger.warning(f"⚠️ Неверный формат: {item}")
+                continue
+            
+            key, calc_data = item  # ✅ key - строка, calc_data - словарь
+            
+            # ✅ ПРОВЕРКА ТИПА
+            if not isinstance(calc_data, dict):
+                logger.error(f"❌ calc_data не словарь: {type(calc_data)}")
+                continue
+            
+            # ✅ БЕЗОПАСНОЕ ИЗВЛЕЧЕНИЕ
+            calc_name = calc_data.get('name', f"Калькулятор {key}")
+            
+            if not calc_name or not isinstance(calc_name, str):
+                calc_name = f"Калькулятор {key}"
+            
+            # ✅ ДОБАВЛЯЕМ КНОПКУ
+            keyboard.append([
+                InlineKeyboardButton(
+                    text=str(calc_name),
+                    callback_data=f"calc_{str(key)}"
+                )
+            ])
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка обработки {item}: {e}")
             continue
-    keyboard.append([InlineKeyboardButton("🏠 В главное меню", callback_data="back_to_menu")])
+    
+    # Кнопка возврата в меню
+    keyboard.append([
+        InlineKeyboardButton("🏠 В главное меню", callback_data="back_to_menu")
+    ])
+    
     return InlineKeyboardMarkup(keyboard)
 
 def get_calc_input_keyboard():
