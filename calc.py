@@ -1267,13 +1267,13 @@ def create_dashboard_chart(dash_key, results):
         return None
 
 def create_dashboard_pdf(results, chart_buf, user_info=None):
-    """Создание PDF-отчёта (исправленная версия)"""
+    """Создание PDF-отчёта (работает с временным файлом)"""
     if not VISUALIZATION_AVAILABLE:
         return None
     
     try:
-        from reportlab.lib.utils import ImageReader
         from reportlab.platypus import Image as RLImage
+        import tempfile
         
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter, 
@@ -1315,13 +1315,23 @@ def create_dashboard_pdf(results, chart_buf, user_info=None):
         story.append(Paragraph(f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}", normal_style))
         story.append(Spacer(1, 20))
         
-        # График - ИСПРАВЛЕНО
+        # График - через временный файл
         if chart_buf:
             chart_buf.seek(0)
-            img_reader = ImageReader(chart_buf)
-            img = RLImage(img_reader, width=6*inch, height=3.5*inch)
-            story.append(img)
-            story.append(Spacer(1, 20))
+            # Создаём временный файл
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+                tmp_file.write(chart_buf.getvalue())
+                tmp_path = tmp_file.name
+            
+            try:
+                # Добавляем изображение из файла
+                img = RLImage(tmp_path, width=6*inch, height=3.5*inch)
+                story.append(img)
+                story.append(Spacer(1, 20))
+            finally:
+                # Удаляем временный файл
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
         
         # Результаты в таблице
         story.append(Paragraph("📋 Детальный анализ:", header_style))
