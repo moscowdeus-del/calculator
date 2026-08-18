@@ -1267,10 +1267,14 @@ def create_dashboard_chart(dash_key, results):
         return None
 
 def create_dashboard_pdf(results, chart_buf, user_info=None):
+    """Создание PDF-отчёта (исправленная версия)"""
     if not VISUALIZATION_AVAILABLE:
         return None
     
     try:
+        from reportlab.lib.utils import ImageReader
+        from reportlab.platypus import Image as RLImage
+        
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter, 
                                rightMargin=72, leftMargin=72,
@@ -1304,19 +1308,22 @@ def create_dashboard_pdf(results, chart_buf, user_info=None):
         
         story = []
         
+        # Заголовок
         story.append(Paragraph("📊 Управленческий дашборд", title_style))
         if user_info:
             story.append(Paragraph(f"Отчёт для: {user_info}", normal_style))
         story.append(Paragraph(f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}", normal_style))
         story.append(Spacer(1, 20))
         
+        # График - ИСПРАВЛЕНО
         if chart_buf:
             chart_buf.seek(0)
             img_reader = ImageReader(chart_buf)
-            img = Image(img_reader, width=6*inch, height=3.5*inch)
+            img = RLImage(img_reader, width=6*inch, height=3.5*inch)
             story.append(img)
             story.append(Spacer(1, 20))
         
+        # Результаты в таблице
         story.append(Paragraph("📋 Детальный анализ:", header_style))
         
         table_data = [['Показатель', 'Значение', 'Оценка']]
@@ -1352,6 +1359,7 @@ def create_dashboard_pdf(results, chart_buf, user_info=None):
         story.append(table)
         story.append(Spacer(1, 20))
         
+        # Рекомендации
         story.append(Paragraph("💡 Рекомендации:", header_style))
         
         recommendations = []
@@ -1360,15 +1368,22 @@ def create_dashboard_pdf(results, chart_buf, user_info=None):
         for key, value in results.items():
             if '🔴' in str(value):
                 has_issues = True
-                recommendations.append(f"• {key} требует внимания.")
+                if 'финанс' in key.lower() or 'маржинальность' in key.lower():
+                    recommendations.append("• Оптимизируйте финансовые показатели, снизьте издержки.")
+                elif 'hr' in key.lower() or 'текучесть' in key.lower():
+                    recommendations.append("• Высокая текучесть кадров. Проведите анализ причин.")
+                elif 'маркетинг' in key.lower() or 'romi' in key.lower():
+                    recommendations.append("• Маркетинговые инвестиции неэффективны. Пересмотрите каналы.")
+                else:
+                    recommendations.append(f"• {key} требует внимания.")
             elif '🟡' in str(value):
-                recommendations.append(f"• {key} на среднем уровне.")
+                recommendations.append(f"• {key} на среднем уровне. Есть потенциал для роста.")
         
         if not has_issues:
-            recommendations.append("✅ Все показатели в норме.")
+            recommendations.append("✅ Все показатели в норме. Поддерживайте текущий уровень.")
         
         if not recommendations:
-            recommendations.append("• Проведите регулярный мониторинг.")
+            recommendations.append("• Проводите регулярный мониторинг показателей.")
         
         for rec in recommendations[:5]:
             story.append(Paragraph(rec, normal_style))
