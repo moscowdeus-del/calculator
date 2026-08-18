@@ -1,6 +1,6 @@
 """
 БОТ «ИНЖИНИРИНГ БИЗНЕСА»
-Версия 14.0 — 50+ КАЛЬКУЛЯТОРОВ
+Версия 15.0 — 50+ КАЛЬКУЛЯТОРОВ + ДАШБОРД + ВИЗУАЛИЗАЦИЯ
 """
 
 import os
@@ -25,9 +25,9 @@ from telegram.ext import (
 # 1. КОНФИГУРАЦИЯ
 # ===================================================================
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", " 8776638172:AAEmRGbK7ctQ9uc0OJmPdYCoDWv-cxDvXR0")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8776638172:AAEmRGbK7ctQ9uc0OJmPdYCoDWv-cxDvXR0")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "6011810304"))
-CHANNEL_ID = os.environ.get("CHANNEL_ID", " -1004391759838 ")
+CHANNEL_ID = os.environ.get("CHANNEL_ID", "-1004391759838")
 CHANNEL_LINK = os.environ.get("CHANNEL_LINK", "https://t.me/old_stoic")
 SITE_LINK = os.environ.get("SITE_LINK", "https://optimasystemc.tilda.ws/")
 CONTACT_LINK = os.environ.get("CONTACT_LINK", "@deus_s")
@@ -329,21 +329,8 @@ def get_start_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-def get_main_menu():
-    keyboard = [
-        [InlineKeyboardButton("📊 Финансы и учёт", callback_data="menu_finance")],
-        [InlineKeyboardButton("📈 Маркетинг", callback_data="menu_marketing")],
-        [InlineKeyboardButton("💰 Продажи", callback_data="menu_sales")],
-        [InlineKeyboardButton("📦 Логистика и склад", callback_data="menu_logistics")],
-        [InlineKeyboardButton("👥 Персонал и HR", callback_data="menu_hr")],
-        [InlineKeyboardButton("🏭 Производство", callback_data="menu_production")],
-        [InlineKeyboardButton("📱 IT и автоматизация", callback_data="menu_it")],
-        [InlineKeyboardButton("📋 Управление проектами", callback_data="menu_management")],
-        [InlineKeyboardButton("⚖️ Юридический", callback_data="menu_legal")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-def get_main_menu_with_admin():
+def get_main_menu_with_dashboard():
+    """Главное меню с дашбордом и админ-панелью"""
     keyboard = [
         [InlineKeyboardButton("📊 Финансы и учёт", callback_data="menu_finance")],
         [InlineKeyboardButton("📈 Маркетинг", callback_data="menu_marketing")],
@@ -354,6 +341,7 @@ def get_main_menu_with_admin():
         [InlineKeyboardButton("📱 IT и автоматизация", callback_data="menu_it")],
         [InlineKeyboardButton("📋 Управление проектами", callback_data="menu_management")],
         [InlineKeyboardButton("⚖️ Юридический", callback_data="menu_legal")],
+        [InlineKeyboardButton("📊 Управленческий дашборд", callback_data="menu_dashboard")],
         [InlineKeyboardButton("⚙️ Админ-панель", callback_data="admin_panel")]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -368,7 +356,7 @@ def get_admin_menu():
     return InlineKeyboardMarkup(keyboard)
 
 def get_calc_list_keyboard(calc_list):
-    """Генерация клавиатуры со списком калькуляторов (ИСПРАВЛЕНО)"""
+    """Генерация клавиатуры со списком калькуляторов"""
     keyboard = []
     for item in calc_list:
         if isinstance(item, tuple) and len(item) == 2:
@@ -400,12 +388,26 @@ def get_contact_request_keyboard():
     keyboard = [[KeyboardButton("📱 Отправить контакт", request_contact=True)]]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
 
-# ===================================================================
-# 5. КАЛЬКУЛЯТОРЫ (50+ ШТУК)
-# ===================================================================
+def get_dashboard_list_keyboard():
+    """Клавиатура со списком дашбордов"""
+    keyboard = []
+    for key, info in DASHBOARD_CALCS.items():
+        keyboard.append([InlineKeyboardButton(f"📊 {info['name']}", callback_data=f"dash_{key}")])
+    keyboard.append([InlineKeyboardButton("🏠 В главное меню", callback_data="back_to_menu")])
+    return InlineKeyboardMarkup(keyboard)
+
+def get_dashboard_action_keyboard():
+    """Клавиатура действий с дашбордом"""
+    keyboard = [
+        [InlineKeyboardButton("📊 Показать график", callback_data="dash_chart")],
+        [InlineKeyboardButton("📄 Скачать PDF-отчёт", callback_data="dash_pdf")],
+        [InlineKeyboardButton("🔄 Новый расчёт", callback_data="dash_new")],
+        [InlineKeyboardButton("🏠 В меню", callback_data="back_to_menu")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 # ===================================================================
-# 5. КАЛЬКУЛЯТОРЫ (50+ ШТУК) — ИСПРАВЛЕННЫЕ ТЕКСТЫ
+# 5. КАЛЬКУЛЯТОРЫ (50+ ШТУК)
 # ===================================================================
 
 # ===== 5.1. ФИНАНСЫ И УЧЁТ - 9 =====
@@ -925,7 +927,293 @@ def calculate(formula_key, inputs):
         return None
 
 # ===================================================================
-# 7. MIDDLEWARE ДЛЯ ПРОВЕРКИ ПОДПИСКИ
+# 7. ДАШБОРД И ВИЗУАЛИЗАЦИЯ
+# ===================================================================
+
+# Импортируем библиотеки для визуализации
+try:
+    import matplotlib
+    matplotlib.use('Agg')  # Без GUI
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import numpy as np
+    from io import BytesIO
+    import tempfile
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    VISUALIZATION_AVAILABLE = True
+    logger.info("✅ Библиотеки визуализации загружены")
+except ImportError as e:
+    VISUALIZATION_AVAILABLE = False
+    logger.warning(f"⚠️ Библиотеки визуализации не установлены: {e}")
+
+# ===== 7.1. ДАШБОРД-КАЛЬКУЛЯТОРЫ =====
+
+DASHBOARD_CALCS = {
+    "financial_health": {
+        "name": "Финансовое здоровье бизнеса",
+        "description": "Комплексная оценка финансового состояния",
+        "inputs": ["Выручка (руб)", "Чистая прибыль (руб)", "Активы (руб)", "Обязательства (руб)"],
+        "category": "finance"
+    },
+    "business_efficiency": {
+        "name": "Эффективность бизнес-процессов",
+        "description": "Оценка операционной эффективности",
+        "inputs": ["Выручка (руб)", "Расходы (руб)", "Кол-во сотрудников", "Кол-во клиентов"],
+        "category": "management"
+    },
+    "marketing_performance": {
+        "name": "Маркетинговая эффективность",
+        "description": "Анализ маркетинговых показателей",
+        "inputs": ["Бюджет маркетинга (руб)", "Новые клиенты", "Доход от маркетинга (руб)", "Конверсия (%)"],
+        "category": "marketing"
+    },
+    "hr_metrics": {
+        "name": "HR-метрики",
+        "description": "Анализ персонала и эффективности труда",
+        "inputs": ["ФОТ (руб)", "Кол-во сотрудников", "Выручка (руб)", "Текучесть (%)"],
+        "category": "hr"
+    }
+}
+
+def calculate_dashboard(dash_key, inputs):
+    """Расчёт комплексных показателей для дашборда"""
+    try:
+        a, b, c, d = [float(x) for x in inputs[:4]]
+        
+        if dash_key == "financial_health":
+            net_profit = a - b
+            margin = (net_profit / a) * 100 if a > 0 else 0
+            roe = (net_profit / c) * 100 if c > 0 else 0
+            debt_ratio = (d / c) * 100 if c > 0 else 0
+            
+            return {
+                "Чистая прибыль": f"{net_profit:,.0f} руб.",
+                "Маржинальность": f"{margin:.1f}%",
+                "ROE": f"{roe:.1f}%",
+                "Долговая нагрузка": f"{debt_ratio:.1f}%",
+                "Оценка": "Отлично 🟢" if margin > 20 and roe > 15 else "Хорошо 🟡" if margin > 10 else "Требует внимания 🔴"
+            }
+        
+        elif dash_key == "business_efficiency":
+            profit = a - b
+            margin = (profit / a) * 100 if a > 0 else 0
+            revenue_per_employee = a / c if c > 0 else 0
+            revenue_per_client = a / d if d > 0 else 0
+            
+            return {
+                "Маржинальность": f"{margin:.1f}%",
+                "Выручка на сотрудника": f"{revenue_per_employee:,.0f} руб.",
+                "Выручка на клиента": f"{revenue_per_client:,.0f} руб.",
+                "Эффективность": "Высокая 🟢" if margin > 15 and revenue_per_employee > 1000000 else "Средняя 🟡" if margin > 8 else "Низкая 🔴"
+            }
+        
+        elif dash_key == "marketing_performance":
+            cac = a / b if b > 0 else 0
+            romi = ((c - a) / a) * 100 if a > 0 else 0
+            ltv = c / b if b > 0 else 0
+            
+            return {
+                "CAC": f"{cac:,.0f} руб.",
+                "ROMI": f"{romi:.1f}%",
+                "LTV": f"{ltv:,.0f} руб.",
+                "Соотношение LTV/CAC": f"{ltv/cac:.2f}" if cac > 0 else "N/A",
+                "Оценка": "Отлично 🟢" if romi > 200 else "Хорошо 🟡" if romi > 100 else "Требует внимания 🔴"
+            }
+        
+        elif dash_key == "hr_metrics":
+            avg_salary = a / c if c > 0 else 0
+            revenue_per_employee = b / c if c > 0 else 0
+            profit_per_employee = (b - a) / c if c > 0 else 0
+            
+            return {
+                "Средняя зарплата": f"{avg_salary:,.0f} руб.",
+                "Выручка на сотрудника": f"{revenue_per_employee:,.0f} руб.",
+                "Прибыль на сотрудника": f"{profit_per_employee:,.0f} руб.",
+                "Текучесть": f"{d:.1f}%",
+                "Оценка": "Отлично 🟢" if d < 15 and profit_per_employee > 100000 else "Хорошо 🟡" if d < 25 else "Требует внимания 🔴"
+            }
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Ошибка расчёта дашборда: {e}")
+        return None
+
+def create_dashboard_chart(dash_key, results):
+    """Создание графиков для дашборда"""
+    if not VISUALIZATION_AVAILABLE:
+        return None
+    
+    try:
+        # Настройка стиля
+        sns.set_style("whitegrid")
+        fig, ax = plt.subplots(figsize=(12, 8), facecolor='white')
+        
+        # Извлекаем числовые данные
+        numeric_data = {}
+        for key, value in results.items():
+            if isinstance(value, str):
+                numbers = re.findall(r'[\d.]+', value.replace(',', ''))
+                if numbers:
+                    try:
+                        numeric_data[key] = float(numbers[0])
+                    except:
+                        pass
+            elif isinstance(value, (int, float)):
+                numeric_data[key] = value
+        
+        if not numeric_data:
+            # Если нет числовых данных, создаём информационную диаграмму
+            categories = list(results.keys())
+            values = [1 for _ in categories]
+            colors_list = ['#2ecc71' if '🟢' in str(results.get(k, '')) else '#f1c40f' if '🟡' in str(results.get(k, '')) else '#e74c3c' 
+                          for k in categories]
+            
+            ax.barh(categories, values, color=colors_list, edgecolor='white', linewidth=2)
+            ax.set_title('Оценка показателей', fontsize=18, fontweight='bold', pad=20)
+            
+            for i, (cat, val) in enumerate(zip(categories, values)):
+                text = str(results.get(cat, ''))
+                ax.text(val + 0.1, i, text[:50], va='center', fontsize=10)
+            
+            ax.set_xlim(0, 2)
+            ax.set_xticks([])
+            
+        else:
+            # Создаём столбчатую диаграмму
+            categories = list(numeric_data.keys())
+            values = list(numeric_data.values())
+            
+            # Цвета в зависимости от значений
+            mean_val = np.mean(values) if values else 1
+            colors_list = ['#2ecc71' if v > mean_val else '#f1c40f' if v > mean_val * 0.5 else '#e74c3c' 
+                          for v in values]
+            
+            bars = ax.bar(categories, values, color=colors_list, edgecolor='white', linewidth=2)
+            ax.set_ylabel('Значение', fontsize=14)
+            ax.set_title('Ключевые показатели бизнеса', fontsize=18, fontweight='bold', pad=20)
+            
+            # Добавляем значения
+            for bar, val in zip(bars, values):
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height + max(values)*0.02,
+                       f'{val:,.0f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
+            
+            plt.xticks(rotation=45, ha='right', fontsize=11)
+            
+        plt.tight_layout()
+        return fig
+        
+    except Exception as e:
+        logger.error(f"Ошибка создания графика: {e}")
+        return None
+
+def create_dashboard_pdf(results, chart_fig, user_info=None):
+    """Создание PDF-отчёта"""
+    if not VISUALIZATION_AVAILABLE:
+        return None
+    
+    try:
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, 
+                               rightMargin=72, leftMargin=72,
+                               topMargin=72, bottomMargin=18)
+        
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            textColor=colors.HexColor('#2c3e50'),
+            alignment=1,
+            spaceAfter=30
+        )
+        
+        header_style = ParagraphStyle(
+            'CustomHeader',
+            parent=styles['Heading2'],
+            fontSize=16,
+            textColor=colors.HexColor('#34495e'),
+            spaceAfter=12
+        )
+        
+        normal_style = ParagraphStyle(
+            'CustomNormal',
+            parent=styles['Normal'],
+            fontSize=11,
+            spaceAfter=6
+        )
+        
+        story = []
+        
+        # Заголовок
+        story.append(Paragraph("📊 Управленческий дашборд", title_style))
+        if user_info:
+            story.append(Paragraph(f"Отчёт для: {user_info}", normal_style))
+        story.append(Paragraph(f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}", normal_style))
+        story.append(Spacer(1, 20))
+        
+        # График
+        if chart_fig:
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+                chart_fig.savefig(tmp_file.name, format='png', dpi=150, bbox_inches='tight', facecolor='white')
+                tmp_file.flush()
+                img = Image(tmp_file.name, width=6*inch, height=4*inch)
+                story.append(img)
+                story.append(Spacer(1, 20))
+        
+        # Результаты в таблице
+        table_data = [['Показатель', 'Значение']]
+        for key, value in results.items():
+            table_data.append([Paragraph(key, normal_style), Paragraph(str(value), normal_style)])
+        
+        table = Table(table_data, colWidths=[3*inch, 3*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        
+        story.append(table)
+        story.append(Spacer(1, 20))
+        
+        # Рекомендации
+        story.append(Paragraph("💡 Рекомендации:", header_style))
+        
+        recommendations = []
+        for key, value in results.items():
+            if '🔴' in str(value):
+                recommendations.append(f"• {key} требует внимания. Рекомендуется провести детальный анализ и разработать план улучшений.")
+            elif '🟡' in str(value):
+                recommendations.append(f"• {key} на среднем уровне. Есть потенциал для роста.")
+        
+        if not recommendations:
+            recommendations.append("✅ Все показатели в норме. Продолжайте в том же духе!")
+        
+        for rec in recommendations:
+            story.append(Paragraph(rec, normal_style))
+        
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+        
+    except Exception as e:
+        logger.error(f"Ошибка создания PDF: {e}")
+        return None
+
+# ===================================================================
+# 8. MIDDLEWARE ДЛЯ ПРОВЕРКИ ПОДПИСКИ
 # ===================================================================
 
 subscription_cache = {}
@@ -955,7 +1243,7 @@ async def is_subscribed(user_id: int) -> bool:
         return False
 
 # ===================================================================
-# 8. ОСНОВНОЙ БОТ
+# 9. ОСНОВНОЙ БОТ
 # ===================================================================
 
 init_db()
@@ -1009,7 +1297,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id == ADMIN_ID:
         await update.message.reply_text(
             "👋 Добро пожаловать!",
-            reply_markup=get_main_menu_with_admin()
+            reply_markup=get_main_menu_with_dashboard()
         )
         return
 
@@ -1025,7 +1313,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id == ADMIN_ID:
         await update.message.reply_text(
             "👋 Главное меню:",
-            reply_markup=get_main_menu_with_admin()
+            reply_markup=get_main_menu_with_dashboard()
         )
         return
     
@@ -1039,7 +1327,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(
         after_subscribe_text(),
-        reply_markup=get_main_menu(),
+        reply_markup=get_main_menu_with_dashboard(),
         parse_mode=None
     )
 
@@ -1146,18 +1434,127 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 await query.edit_message_text(
                     after_subscribe_text(),
-                    reply_markup=get_main_menu_with_admin() if user_id == ADMIN_ID else get_main_menu(),
+                    reply_markup=get_main_menu_with_dashboard() if user_id == ADMIN_ID else get_main_menu_with_dashboard(),
                     parse_mode=None
                 )
             except Exception as e:
                 logger.error(f"Ошибка: {e}")
                 await query.message.reply_text(
                     after_subscribe_text(),
-                    reply_markup=get_main_menu_with_admin() if user_id == ADMIN_ID else get_main_menu(),
+                    reply_markup=get_main_menu_with_dashboard() if user_id == ADMIN_ID else get_main_menu_with_dashboard(),
                     parse_mode=None
                 )
         else:
             await query.answer("❌ Вы не подписаны. Подпишитесь и нажмите 'Проверить' снова.", show_alert=True)
+        return
+
+    # ===== ДАШБОРД =====
+    if data == "menu_dashboard":
+        await query.edit_message_text(
+            "📊 **Управленческий дашборд**\n\n"
+            "Выберите тип комплексного анализа. Я покажу ключевые показатели "
+            "вашего бизнеса и дам рекомендации.\n\n"
+            "Доступны 4 вида анализа:",
+            reply_markup=get_dashboard_list_keyboard(),
+            parse_mode="Markdown"
+        )
+        return
+
+    if data.startswith("dash_"):
+        dash_key = data.replace("dash_", "")
+        info = DASHBOARD_CALCS.get(dash_key)
+        if not info:
+            await query.answer("Дашборд не найден.")
+            return
+        
+        set_state(user_id, "dash_input", {
+            "dash_key": dash_key,
+            "inputs": [],
+            "step": 0,
+            "total": len(info["inputs"])
+        })
+        
+        first_input = info["inputs"][0]
+        await query.edit_message_text(
+            f"📊 **{info['name']}**\n\n"
+            f"_{info['description']}_\n\n"
+            f"Введите {first_input}:",
+            reply_markup=get_calc_input_keyboard(),
+            parse_mode="Markdown"
+        )
+        return
+
+    if data == "dash_chart":
+        if not VISUALIZATION_AVAILABLE:
+            await query.answer("❌ Библиотеки визуализации не установлены", show_alert=True)
+            return
+        
+        state, state_data = get_state(user_id)
+        if "dash_results" not in state_data:
+            await query.answer("Сначала выполните расчёт!")
+            return
+        
+        results = state_data.get("dash_results", {})
+        dash_key = state_data.get("dash_key", "financial_health")
+        
+        fig = create_dashboard_chart(dash_key, results)
+        if not fig:
+            await query.answer("❌ Ошибка создания графика")
+            return
+        
+        buf = BytesIO()
+        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight', facecolor='white')
+        buf.seek(0)
+        plt.close(fig)
+        
+        await query.message.reply_photo(
+            photo=buf,
+            caption="📊 **Визуализация показателей**\n\n_На графике отображены ключевые метрики вашего бизнеса._",
+            parse_mode="Markdown"
+        )
+        return
+
+    if data == "dash_pdf":
+        if not VISUALIZATION_AVAILABLE:
+            await query.answer("❌ Библиотеки для PDF не установлены", show_alert=True)
+            return
+        
+        state, state_data = get_state(user_id)
+        if "dash_results" not in state_data:
+            await query.answer("Сначала выполните расчёт!")
+            return
+        
+        results = state_data.get("dash_results", {})
+        dash_key = state_data.get("dash_key", "financial_health")
+        
+        fig = create_dashboard_chart(dash_key, results)
+        if not fig:
+            await query.answer("❌ Ошибка создания графика")
+            return
+        
+        pdf_buffer = create_dashboard_pdf(results, fig, user_info=query.from_user.first_name)
+        plt.close(fig)
+        
+        if not pdf_buffer:
+            await query.answer("❌ Ошибка создания PDF")
+            return
+        
+        await context.bot.send_document(
+            chat_id=user_id,
+            document=('dashboard_report.pdf', pdf_buffer.getvalue()),
+            filename='dashboard_report.pdf',
+            caption="📄 **Управленческий отчёт сформирован!**\n\nВ отчёте: график, таблица показателей и рекомендации.",
+            parse_mode="Markdown"
+        )
+        return
+
+    if data == "dash_new":
+        await query.edit_message_text(
+            "📊 **Управленческий дашборд**\n\n"
+            "Выберите тип комплексного анализа:",
+            reply_markup=get_dashboard_list_keyboard(),
+            parse_mode="Markdown"
+        )
         return
 
     # ===== Меню =====
@@ -1217,14 +1614,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ===== Назад в меню =====
     if data == "back_to_menu":
         clear_state(user_id)
-        if user_id == ADMIN_ID:
-            text = "👋 Главное меню:"
-            reply_markup = get_main_menu_with_admin()
-        else:
-            text = after_subscribe_text()
-            reply_markup = get_main_menu()
-        
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=None)
+        text = after_subscribe_text()
+        await query.edit_message_text(
+            text,
+            reply_markup=get_main_menu_with_dashboard(),
+            parse_mode=None
+        )
         return
 
     # ===== Назад к категории =====
@@ -1265,6 +1660,74 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     state, state_data = get_state(user_id)
 
+    # ===== ВВОД ДЛЯ ДАШБОРДА =====
+    if state == "dash_input":
+        dash_key = state_data.get("dash_key")
+        info = DASHBOARD_CALCS.get(dash_key)
+        if not info:
+            await update.message.reply_text("Ошибка. Попробуйте снова /menu")
+            clear_state(user_id)
+            return
+        
+        step = state_data.get("step", 0)
+        total = state_data.get("total", len(info["inputs"]))
+        inputs = state_data.get("inputs", [])
+        
+        try:
+            value = float(text.replace(",", "."))
+            inputs.append(value)
+        except ValueError:
+            await update.message.reply_text(
+                "❌ Введите число (например, 1000):",
+                reply_markup=get_calc_input_keyboard()
+            )
+            return
+        
+        step += 1
+        
+        if step >= total:
+            # Выполняем расчёт
+            results = calculate_dashboard(dash_key, inputs)
+            if results is None:
+                await update.message.reply_text("❌ Ошибка расчёта.")
+                clear_state(user_id)
+                return
+            
+            # Сохраняем результаты
+            set_state(user_id, "dash_result", {
+                "dash_key": dash_key,
+                "dash_results": results,
+                "inputs": inputs
+            })
+            
+            # Формируем текстовый ответ
+            result_text = f"📊 **{info['name']}**\n\n"
+            for key, value in results.items():
+                result_text += f"**{key}:** {value}\n"
+            
+            await update.message.reply_text(
+                result_text,
+                reply_markup=get_dashboard_action_keyboard(),
+                parse_mode="Markdown"
+            )
+            
+            increment_calc_counter(user_id)
+            
+        else:
+            next_input = info["inputs"][step]
+            set_state(user_id, "dash_input", {
+                "dash_key": dash_key,
+                "inputs": inputs,
+                "step": step,
+                "total": total
+            })
+            await update.message.reply_text(
+                f"Введите {next_input}:",
+                reply_markup=get_calc_input_keyboard()
+            )
+        return
+
+    # ===== ВВОД ДЛЯ КАЛЬКУЛЯТОРА =====
     if state == "calc_input":
         calc_key = state_data.get("calc_key")
         info = get_calc_info(calc_key)
@@ -1366,7 +1829,7 @@ async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Не удалось получить контакт.")
 
 # ===================================================================
-# 9. ПЛАНИРОВЩИК
+# 10. ПЛАНИРОВЩИК
 # ===================================================================
 
 async def send_touch_2(context, user_id):
@@ -1425,13 +1888,14 @@ async def check_and_send_touches(context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Ошибка обработки {user['user_id']}: {e}")
 
 # ===================================================================
-# 10. ЗАПУСК
+# 11. ЗАПУСК
 # ===================================================================
 
 def main():
     logger.info("🚀 Бот запущен!")
     logger.info(f"📢 Канал: {CHANNEL_LINK}")
     logger.info(f"🌐 Сайт: {SITE_LINK}")
+    logger.info(f"📊 Визуализация: {'Доступна' if VISUALIZATION_AVAILABLE else 'Недоступна'}")
 
     app = Application.builder().token(BOT_TOKEN).build()
 
