@@ -1,6 +1,6 @@
 """
 БОТ «ИНЖИНИРИНГ БИЗНЕСА»
-Версия 15.0 — 50+ КАЛЬКУЛЯТОРОВ + ДАШБОРД + ВИЗУАЛИЗАЦИЯ
+Версия 15.1 — 50+ КАЛЬКУЛЯТОРОВ + ДАШБОРД + ВИЗУАЛИЗАЦИЯ (БЕЗ ВРЕМЕННЫХ ФАЙЛОВ)
 """
 
 import os
@@ -10,6 +10,7 @@ import re
 import sqlite3
 from datetime import datetime, timedelta
 from functools import wraps
+from io import BytesIO
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from telegram.ext import (
@@ -46,7 +47,31 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ===================================================================
-# 2. БАЗА ДАННЫХ
+# 2. ПРОВЕРКА БИБЛИОТЕК ВИЗУАЛИЗАЦИИ
+# ===================================================================
+
+VISUALIZATION_AVAILABLE = False
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import numpy as np
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.lib.utils import ImageReader
+    VISUALIZATION_AVAILABLE = True
+    logger.info("✅ Библиотеки визуализации загружены")
+except ImportError as e:
+    logger.warning(f"⚠️ Библиотеки визуализации не установлены: {e}")
+    logger.warning("⚠️ Для работы графиков и PDF установите: pip install matplotlib seaborn numpy reportlab pillow")
+
+# ===================================================================
+# 3. БАЗА ДАННЫХ
 # ===================================================================
 
 def get_db():
@@ -217,7 +242,7 @@ def get_all_users_stats():
     }
 
 # ===================================================================
-# 3. ТЕКСТЫ
+# 4. ТЕКСТЫ
 # ===================================================================
 
 def welcome_text(first_name):
@@ -319,7 +344,7 @@ def email_sent_text(email):
 До встречи!"""
 
 # ===================================================================
-# 4. КЛАВИАТУРЫ
+# 5. КЛАВИАТУРЫ
 # ===================================================================
 
 def get_start_keyboard():
@@ -407,10 +432,10 @@ def get_dashboard_action_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 # ===================================================================
-# 5. КАЛЬКУЛЯТОРЫ (50+ ШТУК)
+# 6. КАЛЬКУЛЯТОРЫ (50+ ШТУК)
 # ===================================================================
 
-# ===== 5.1. ФИНАНСЫ И УЧЁТ - 9 =====
+# ===== 6.1. ФИНАНСЫ И УЧЁТ - 9 =====
 FINANCE_CALCS = {
     "net_profit": {
         "name": "Чистая прибыль",
@@ -486,7 +511,7 @@ FINANCE_CALCS = {
     }
 }
 
-# ===== 5.2. МАРКЕТИНГ - 6 =====
+# ===== 6.2. МАРКЕТИНГ - 6 =====
 MARKETING_CALCS = {
     "cac": {
         "name": "Стоимость привлечения клиента (CAC)",
@@ -538,7 +563,7 @@ MARKETING_CALCS = {
     }
 }
 
-# ===== 5.3. ПРОДАЖИ - 6 =====
+# ===== 6.3. ПРОДАЖИ - 6 =====
 SALES_CALCS = {
     "closure": {
         "name": "Коэффициент закрытия сделок",
@@ -590,7 +615,7 @@ SALES_CALCS = {
     }
 }
 
-# ===== 5.4. ЛОГИСТИКА И СКЛАД - 6 =====
+# ===== 6.4. ЛОГИСТИКА И СКЛАД - 6 =====
 LOGISTICS_CALCS = {
     "turnover": {
         "name": "Оборачиваемость запасов",
@@ -642,7 +667,7 @@ LOGISTICS_CALCS = {
     }
 }
 
-# ===== 5.5. ПЕРСОНАЛ И HR - 7 =====
+# ===== 6.5. ПЕРСОНАЛ И HR - 7 =====
 HR_CALCS = {
     "employee_turnover": {
         "name": "Текучесть кадров",
@@ -702,7 +727,7 @@ HR_CALCS = {
     }
 }
 
-# ===== 5.6. ПРОИЗВОДСТВО - 6 =====
+# ===== 6.6. ПРОИЗВОДСТВО - 6 =====
 PRODUCTION_CALCS = {
     "oee": {
         "name": "Эффективность оборудования (OEE)",
@@ -754,7 +779,7 @@ PRODUCTION_CALCS = {
     }
 }
 
-# ===== 5.7. IT И АВТОМАТИЗАЦИЯ - 5 =====
+# ===== 6.7. IT И АВТОМАТИЗАЦИЯ - 5 =====
 IT_CALCS = {
     "automation_roi": {
         "name": "ROI автоматизации",
@@ -798,7 +823,7 @@ IT_CALCS = {
     }
 }
 
-# ===== 5.8. УПРАВЛЕНИЕ ПРОЕКТАМИ - 5 =====
+# ===== 6.8. УПРАВЛЕНИЕ ПРОЕКТАМИ - 5 =====
 MANAGEMENT_CALCS = {
     "spi": {
         "name": "Выполнение сроков (SPI)",
@@ -842,7 +867,7 @@ MANAGEMENT_CALCS = {
     }
 }
 
-# ===== 5.9. ЮРИДИЧЕСКИЙ - 4 =====
+# ===== 6.9. ЮРИДИЧЕСКИЙ - 4 =====
 LEGAL_CALCS = {
     "contract_risk": {
         "name": "Юридические риски по договорам",
@@ -879,7 +904,7 @@ LEGAL_CALCS = {
 }
 
 # ===================================================================
-# 6. ОБЪЕДИНЕНИЕ ВСЕХ КАЛЬКУЛЯТОРОВ
+# 7. ОБЪЕДИНЕНИЕ ВСЕХ КАЛЬКУЛЯТОРОВ
 # ===================================================================
 
 def get_calc_groups():
@@ -927,31 +952,10 @@ def calculate(formula_key, inputs):
         return None
 
 # ===================================================================
-# 7. ДАШБОРД И ВИЗУАЛИЗАЦИЯ
+# 8. ДАШБОРД И ВИЗУАЛИЗАЦИЯ
 # ===================================================================
 
-# Импортируем библиотеки для визуализации
-try:
-    import matplotlib
-    matplotlib.use('Agg')  # Без GUI
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    import numpy as np
-    from io import BytesIO
-    import tempfile
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.pagesizes import letter
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib import colors
-    from reportlab.lib.units import inch
-    VISUALIZATION_AVAILABLE = True
-    logger.info("✅ Библиотеки визуализации загружены")
-except ImportError as e:
-    VISUALIZATION_AVAILABLE = False
-    logger.warning(f"⚠️ Библиотеки визуализации не установлены: {e}")
-
-# ===== 7.1. ДАШБОРД-КАЛЬКУЛЯТОРЫ (ИСПРАВЛЕННЫЕ) =====
+# ===== 8.1. ДАШБОРД-КАЛЬКУЛЯТОРЫ =====
 
 DASHBOARD_CALCS = {
     "financial_health": {
@@ -1201,8 +1205,10 @@ def calculate_dashboard(dash_key, inputs):
         logger.error(f"Ошибка расчёта дашборда: {e}")
         return None
 
+# ===== 8.2. ВИЗУАЛИЗАЦИЯ (БЕЗ ВРЕМЕННЫХ ФАЙЛОВ) =====
+
 def create_dashboard_chart(dash_key, results):
-    """Создание профессиональных графиков для дашборда"""
+    """Создание графиков для дашборда (возвращает BytesIO)"""
     if not VISUALIZATION_AVAILABLE:
         return None
     
@@ -1241,7 +1247,12 @@ def create_dashboard_chart(dash_key, results):
                        ha='center', va='center', fontsize=14, transform=ax.transAxes)
                 ax.set_xticks([])
                 ax.set_yticks([])
-            return fig
+            # Сохраняем в BytesIO
+            buf = BytesIO()
+            fig.savefig(buf, format='png', dpi=150, bbox_inches='tight', facecolor='white')
+            buf.seek(0)
+            plt.close(fig)
+            return buf
         
         # График 1: Столбчатая диаграмма - основные показатели
         ax1 = axes[0]
@@ -1304,14 +1315,20 @@ def create_dashboard_chart(dash_key, results):
             ax2.set_yticks([])
         
         plt.tight_layout()
-        return fig
+        
+        # Сохраняем в BytesIO
+        buf = BytesIO()
+        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight', facecolor='white')
+        buf.seek(0)
+        plt.close(fig)
+        return buf
         
     except Exception as e:
         logger.error(f"Ошибка создания графика: {e}")
         return None
 
-def create_dashboard_pdf(results, chart_fig, user_info=None):
-    """Создание профессионального PDF-отчёта"""
+def create_dashboard_pdf(results, chart_buf, user_info=None):
+    """Создание PDF-отчёта (без временных файлов)"""
     if not VISUALIZATION_AVAILABLE:
         return None
     
@@ -1357,22 +1374,19 @@ def create_dashboard_pdf(results, chart_fig, user_info=None):
         story.append(Paragraph(f"Дата формирования: {datetime.now().strftime('%d.%m.%Y %H:%M')}", normal_style))
         story.append(Spacer(1, 20))
         
-        # График
-        if chart_fig:
-            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-                chart_fig.savefig(tmp_file.name, format='png', dpi=150, 
-                                bbox_inches='tight', facecolor='white')
-                tmp_file.flush()
-                img = Image(tmp_file.name, width=6*inch, height=3.5*inch)
-                story.append(img)
-                story.append(Spacer(1, 20))
+        # График из BytesIO
+        if chart_buf:
+            chart_buf.seek(0)
+            img_reader = ImageReader(chart_buf)
+            img = Image(img_reader, width=6*inch, height=3.5*inch)
+            story.append(img)
+            story.append(Spacer(1, 20))
         
         # Результаты в таблице
         story.append(Paragraph("📋 Детальный анализ показателей:", header_style))
         
         table_data = [['Показатель', 'Значение', 'Оценка']]
         for key, value in results.items():
-            # Определяем оценку
             if '🟢' in str(value):
                 status = '✅ Отлично'
             elif '🟡' in str(value):
@@ -1447,7 +1461,7 @@ def create_dashboard_pdf(results, chart_fig, user_info=None):
         return None
 
 # ===================================================================
-# 8. MIDDLEWARE ДЛЯ ПРОВЕРКИ ПОДПИСКИ
+# 9. MIDDLEWARE ДЛЯ ПРОВЕРКИ ПОДПИСКИ
 # ===================================================================
 
 subscription_cache = {}
@@ -1477,7 +1491,7 @@ async def is_subscribed(user_id: int) -> bool:
         return False
 
 # ===================================================================
-# 9. ОСНОВНОЙ БОТ
+# 10. ОСНОВНОЙ БОТ
 # ===================================================================
 
 init_db()
@@ -1684,14 +1698,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ===== ДАШБОРД =====
     if data == "menu_dashboard":
-        await query.edit_message_text(
-            "📊 **Управленческий дашборд**\n\n"
-            "Выберите тип комплексного анализа. Я покажу ключевые показатели "
-            "вашего бизнеса и дам рекомендации.\n\n"
-            "Доступны 4 вида анализа:",
-            reply_markup=get_dashboard_list_keyboard(),
-            parse_mode="Markdown"
-        )
+        if not VISUALIZATION_AVAILABLE:
+            await query.edit_message_text(
+                "📊 **Управленческий дашборд**\n\n"
+                "⚠️ **Внимание!** Библиотеки визуализации не установлены.\n\n"
+                "Для работы графиков и PDF установите:\n"
+                "`pip install matplotlib seaborn numpy reportlab pillow`\n\n"
+                "Пока доступен только текстовый расчёт показателей.",
+                reply_markup=get_dashboard_list_keyboard(),
+                parse_mode="Markdown"
+            )
+        else:
+            await query.edit_message_text(
+                "📊 **Управленческий дашборд**\n\n"
+                "Выберите тип комплексного анализа. Я покажу ключевые показатели "
+                "вашего бизнеса и дам рекомендации.\n\n"
+                "Доступны 4 вида анализа:",
+                reply_markup=get_dashboard_list_keyboard(),
+                parse_mode="Markdown"
+            )
         return
 
     if data.startswith("dash_"):
@@ -1720,7 +1745,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "dash_chart":
         if not VISUALIZATION_AVAILABLE:
-            await query.answer("❌ Библиотеки визуализации не установлены", show_alert=True)
+            await query.answer("❌ Библиотеки визуализации не установлены. Установите: pip install matplotlib seaborn numpy", show_alert=True)
             return
         
         state, state_data = get_state(user_id)
@@ -1728,29 +1753,32 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("Сначала выполните расчёт!")
             return
         
-        results = state_data.get("dash_results", {})
-        dash_key = state_data.get("dash_key", "financial_health")
-        
-        fig = create_dashboard_chart(dash_key, results)
-        if not fig:
-            await query.answer("❌ Ошибка создания графика")
-            return
-        
-        buf = BytesIO()
-        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight', facecolor='white')
-        buf.seek(0)
-        plt.close(fig)
-        
-        await query.message.reply_photo(
-            photo=buf,
-            caption="📊 **Визуализация показателей**\n\n_На графике отображены ключевые метрики вашего бизнеса._",
-            parse_mode="Markdown"
-        )
+        try:
+            results = state_data.get("dash_results", {})
+            dash_key = state_data.get("dash_key", "financial_health")
+            
+            # Получаем BytesIO с изображением
+            chart_buf = create_dashboard_chart(dash_key, results)
+            if not chart_buf:
+                await query.answer("❌ Ошибка создания графика")
+                return
+            
+            # Отправляем изображение
+            await query.message.reply_photo(
+                photo=chart_buf,
+                caption="📊 **Визуализация показателей**\n\n_На графике отображены ключевые метрики вашего бизнеса._",
+                parse_mode="Markdown"
+            )
+            chart_buf.close()
+            
+        except Exception as e:
+            logger.error(f"Ошибка: {e}")
+            await query.answer(f"❌ Ошибка: {str(e)[:50]}", show_alert=True)
         return
 
     if data == "dash_pdf":
         if not VISUALIZATION_AVAILABLE:
-            await query.answer("❌ Библиотеки для PDF не установлены", show_alert=True)
+            await query.answer("❌ Библиотеки для PDF не установлены. Установите: pip install reportlab pillow", show_alert=True)
             return
         
         state, state_data = get_state(user_id)
@@ -1758,28 +1786,37 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("Сначала выполните расчёт!")
             return
         
-        results = state_data.get("dash_results", {})
-        dash_key = state_data.get("dash_key", "financial_health")
-        
-        fig = create_dashboard_chart(dash_key, results)
-        if not fig:
-            await query.answer("❌ Ошибка создания графика")
-            return
-        
-        pdf_buffer = create_dashboard_pdf(results, fig, user_info=query.from_user.first_name)
-        plt.close(fig)
-        
-        if not pdf_buffer:
-            await query.answer("❌ Ошибка создания PDF")
-            return
-        
-        await context.bot.send_document(
-            chat_id=user_id,
-            document=('dashboard_report.pdf', pdf_buffer.getvalue()),
-            filename='dashboard_report.pdf',
-            caption="📄 **Управленческий отчёт сформирован!**\n\nВ отчёте: график, таблица показателей и рекомендации.",
-            parse_mode="Markdown"
-        )
+        try:
+            results = state_data.get("dash_results", {})
+            dash_key = state_data.get("dash_key", "financial_health")
+            
+            # Создаём график для PDF
+            chart_buf = create_dashboard_chart(dash_key, results)
+            if not chart_buf:
+                await query.answer("❌ Ошибка создания графика")
+                return
+            
+            # Создаём PDF
+            pdf_buffer = create_dashboard_pdf(results, chart_buf, user_info=query.from_user.first_name)
+            chart_buf.close()
+            
+            if not pdf_buffer:
+                await query.answer("❌ Ошибка создания PDF")
+                return
+            
+            # Отправляем PDF
+            await context.bot.send_document(
+                chat_id=user_id,
+                document=('dashboard_report.pdf', pdf_buffer.getvalue()),
+                filename='dashboard_report.pdf',
+                caption="📄 **Управленческий отчёт сформирован!**\n\nВ отчёте: график, таблица показателей и рекомендации.",
+                parse_mode="Markdown"
+            )
+            pdf_buffer.close()
+            
+        except Exception as e:
+            logger.error(f"Ошибка: {e}")
+            await query.answer(f"❌ Ошибка: {str(e)[:50]}", show_alert=True)
         return
 
     if data == "dash_new":
@@ -2063,7 +2100,7 @@ async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Не удалось получить контакт.")
 
 # ===================================================================
-# 10. ПЛАНИРОВЩИК
+# 11. ПЛАНИРОВЩИК
 # ===================================================================
 
 async def send_touch_2(context, user_id):
@@ -2122,14 +2159,17 @@ async def check_and_send_touches(context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Ошибка обработки {user['user_id']}: {e}")
 
 # ===================================================================
-# 11. ЗАПУСК
+# 12. ЗАПУСК
 # ===================================================================
 
 def main():
     logger.info("🚀 Бот запущен!")
     logger.info(f"📢 Канал: {CHANNEL_LINK}")
     logger.info(f"🌐 Сайт: {SITE_LINK}")
-    logger.info(f"📊 Визуализация: {'Доступна' if VISUALIZATION_AVAILABLE else 'Недоступна'}")
+    logger.info(f"📊 Визуализация: {'✅ Доступна' if VISUALIZATION_AVAILABLE else '❌ Недоступна'}")
+    
+    if not VISUALIZATION_AVAILABLE:
+        logger.warning("⚠️ Для работы графиков и PDF установите: pip install matplotlib seaborn numpy reportlab pillow")
 
     app = Application.builder().token(BOT_TOKEN).build()
 
