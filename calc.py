@@ -951,91 +951,248 @@ except ImportError as e:
     VISUALIZATION_AVAILABLE = False
     logger.warning(f"⚠️ Библиотеки визуализации не установлены: {e}")
 
-# ===== 7.1. ДАШБОРД-КАЛЬКУЛЯТОРЫ =====
+# ===== 7.1. ДАШБОРД-КАЛЬКУЛЯТОРЫ (ИСПРАВЛЕННЫЕ) =====
 
 DASHBOARD_CALCS = {
     "financial_health": {
         "name": "Финансовое здоровье бизнеса",
-        "description": "Комплексная оценка финансового состояния",
-        "inputs": ["Выручка (руб)", "Чистая прибыль (руб)", "Активы (руб)", "Обязательства (руб)"],
+        "description": "Оценка финансовой устойчивости и эффективности",
+        "inputs": [
+            "Выручка (руб/год)",
+            "Себестоимость (руб/год)",
+            "Операционные расходы (руб/год)",
+            "Активы (руб)",
+            "Обязательства (руб)",
+            "Собственный капитал (руб)"
+        ],
         "category": "finance"
     },
     "business_efficiency": {
         "name": "Эффективность бизнес-процессов",
-        "description": "Оценка операционной эффективности",
-        "inputs": ["Выручка (руб)", "Расходы (руб)", "Кол-во сотрудников", "Кол-во клиентов"],
+        "description": "Оценка операционной эффективности компании",
+        "inputs": [
+            "Выручка (руб/год)",
+            "Чистая прибыль (руб/год)",
+            "Кол-во сотрудников",
+            "Кол-во клиентов активных",
+            "Операционные расходы (руб/год)"
+        ],
         "category": "management"
     },
     "marketing_performance": {
         "name": "Маркетинговая эффективность",
-        "description": "Анализ маркетинговых показателей",
-        "inputs": ["Бюджет маркетинга (руб)", "Новые клиенты", "Доход от маркетинга (руб)", "Конверсия (%)"],
+        "description": "Анализ окупаемости маркетинговых инвестиций",
+        "inputs": [
+            "Бюджет маркетинга (руб/мес)",
+            "Новые клиенты в месяц",
+            "Средний чек (руб)",
+            "Маржинальность (%)",
+            "Количество лидов в месяц"
+        ],
         "category": "marketing"
     },
     "hr_metrics": {
-        "name": "HR-метрики",
-        "description": "Анализ персонала и эффективности труда",
-        "inputs": ["ФОТ (руб)", "Кол-во сотрудников", "Выручка (руб)", "Текучесть (%)"],
+        "name": "HR-метрики и управление персоналом",
+        "description": "Анализ эффективности работы с персоналом",
+        "inputs": [
+            "ФОТ (руб/мес)",
+            "Кол-во сотрудников",
+            "Выручка (руб/мес)",
+            "Кол-во уволившихся за год",
+            "Средняя зарплата по рынку (руб/мес)"
+        ],
         "category": "hr"
     }
 }
 
 def calculate_dashboard(dash_key, inputs):
-    """Расчёт комплексных показателей для дашборда"""
+    """
+    Расчёт комплексных показателей для дашборда
+    Используются проверенные бизнес-формулы
+    """
     try:
-        a, b, c, d = [float(x) for x in inputs[:4]]
+        # Конвертируем все входные данные в числа
+        values = [float(x) for x in inputs]
         
         if dash_key == "financial_health":
-            net_profit = a - b
-            margin = (net_profit / a) * 100 if a > 0 else 0
-            roe = (net_profit / c) * 100 if c > 0 else 0
-            debt_ratio = (d / c) * 100 if c > 0 else 0
+            # Финансовое здоровье - проверенные формулы
+            revenue, cost_of_goods, operating_expenses, assets, liabilities, equity = values[:6]
+            
+            # Валовая прибыль
+            gross_profit = revenue - cost_of_goods
+            gross_margin = (gross_profit / revenue) * 100 if revenue > 0 else 0
+            
+            # Операционная прибыль (EBIT)
+            ebit = gross_profit - operating_expenses
+            ebit_margin = (ebit / revenue) * 100 if revenue > 0 else 0
+            
+            # Чистая прибыль (приблизительно)
+            net_profit = ebit * 0.8  # Примерный налог 20%
+            net_margin = (net_profit / revenue) * 100 if revenue > 0 else 0
+            
+            # Рентабельность активов (ROA)
+            roa = (net_profit / assets) * 100 if assets > 0 else 0
+            
+            # Рентабельность капитала (ROE)
+            roe = (net_profit / equity) * 100 if equity > 0 else 0
+            
+            # Коэффициент автономии (финансовая независимость)
+            autonomy_ratio = (equity / assets) * 100 if assets > 0 else 0
+            
+            # Текущая ликвидность (упрощённо)
+            current_ratio = (assets / liabilities) if liabilities > 0 else 0
+            
+            # Оценка финансового здоровья
+            score = 0
+            if gross_margin > 40: score += 1
+            if net_margin > 10: score += 1
+            if roe > 15: score += 1
+            if autonomy_ratio > 50: score += 1
+            if current_ratio > 1.5: score += 1
+            
+            if score >= 4:
+                rating = "Отлично 🟢"
+            elif score >= 3:
+                rating = "Хорошо 🟡"
+            else:
+                rating = "Требует внимания 🔴"
             
             return {
-                "Чистая прибыль": f"{net_profit:,.0f} руб.",
-                "Маржинальность": f"{margin:.1f}%",
-                "ROE": f"{roe:.1f}%",
-                "Долговая нагрузка": f"{debt_ratio:.1f}%",
-                "Оценка": "Отлично 🟢" if margin > 20 and roe > 15 else "Хорошо 🟡" if margin > 10 else "Требует внимания 🔴"
+                "Валовая маржинальность": f"{gross_margin:.1f}%",
+                "Операционная маржинальность": f"{ebit_margin:.1f}%",
+                "Чистая маржинальность": f"{net_margin:.1f}%",
+                "ROA (рентабельность активов)": f"{roa:.1f}%",
+                "ROE (рентабельность капитала)": f"{roe:.1f}%",
+                "Финансовая независимость": f"{autonomy_ratio:.1f}%",
+                "Текущая ликвидность": f"{current_ratio:.2f}",
+                "Общая оценка": rating
             }
         
         elif dash_key == "business_efficiency":
-            profit = a - b
-            margin = (profit / a) * 100 if a > 0 else 0
-            revenue_per_employee = a / c if c > 0 else 0
-            revenue_per_client = a / d if d > 0 else 0
+            # Эффективность бизнес-процессов
+            revenue, net_profit, employees, clients, operating_expenses = values[:5]
+            
+            # Производительность труда
+            revenue_per_employee = revenue / employees if employees > 0 else 0
+            profit_per_employee = net_profit / employees if employees > 0 else 0
+            
+            # Выручка на клиента
+            revenue_per_client = revenue / clients if clients > 0 else 0
+            
+            # Операционная эффективность
+            opex_ratio = (operating_expenses / revenue) * 100 if revenue > 0 else 0
+            
+            # Маржинальность
+            margin = (net_profit / revenue) * 100 if revenue > 0 else 0
+            
+            # Оценка эффективности
+            score = 0
+            if revenue_per_employee > 5000000: score += 1  # >5 млн на сотрудника
+            if profit_per_employee > 500000: score += 1    # >500 тыс прибыли
+            if opex_ratio < 30: score += 1                 # расходы < 30%
+            if margin > 15: score += 1                     # маржинальность > 15%
+            if revenue_per_client > 100000: score += 1     # >100 тыс на клиента
+            
+            if score >= 4:
+                rating = "Высокая 🟢"
+            elif score >= 3:
+                rating = "Средняя 🟡"
+            else:
+                rating = "Низкая 🔴"
             
             return {
-                "Маржинальность": f"{margin:.1f}%",
                 "Выручка на сотрудника": f"{revenue_per_employee:,.0f} руб.",
+                "Прибыль на сотрудника": f"{profit_per_employee:,.0f} руб.",
                 "Выручка на клиента": f"{revenue_per_client:,.0f} руб.",
-                "Эффективность": "Высокая 🟢" if margin > 15 and revenue_per_employee > 1000000 else "Средняя 🟡" if margin > 8 else "Низкая 🔴"
+                "Доля операционных расходов": f"{opex_ratio:.1f}%",
+                "Маржинальность": f"{margin:.1f}%",
+                "Эффективность": rating
             }
         
         elif dash_key == "marketing_performance":
-            cac = a / b if b > 0 else 0
-            romi = ((c - a) / a) * 100 if a > 0 else 0
-            ltv = c / b if b > 0 else 0
+            # Маркетинговая эффективность
+            budget, new_clients, avg_check, margin_pct, leads = values[:5]
+            
+            # CAC - Cost of Customer Acquisition
+            cac = budget / new_clients if new_clients > 0 else 0
+            
+            # LTV - Lifetime Value (упрощённо)
+            # Предполагаем, что клиент совершает 3 покупки в год и живёт 2 года
+            ltv = avg_check * 3 * 2 * (margin_pct / 100)
+            
+            # ROMI - Return on Marketing Investment
+            revenue_from_marketing = new_clients * avg_check
+            romi = ((revenue_from_marketing - budget) / budget) * 100 if budget > 0 else 0
+            
+            # Конверсия из лида в клиента
+            conversion_rate = (new_clients / leads) * 100 if leads > 0 else 0
+            
+            # Соотношение LTV/CAC
+            ltv_cac_ratio = ltv / cac if cac > 0 else 0
+            
+            # Оценка маркетинга
+            score = 0
+            if romi > 200: score += 1
+            if ltv_cac_ratio > 3: score += 1  # Золотое правило маркетинга
+            if conversion_rate > 10: score += 1
+            if cac < avg_check * 0.3: score += 1
+            
+            if score >= 3:
+                rating = "Отлично 🟢"
+            elif score >= 2:
+                rating = "Хорошо 🟡"
+            else:
+                rating = "Требует внимания 🔴"
             
             return {
-                "CAC": f"{cac:,.0f} руб.",
-                "ROMI": f"{romi:.1f}%",
-                "LTV": f"{ltv:,.0f} руб.",
-                "Соотношение LTV/CAC": f"{ltv/cac:.2f}" if cac > 0 else "N/A",
-                "Оценка": "Отлично 🟢" if romi > 200 else "Хорошо 🟡" if romi > 100 else "Требует внимания 🔴"
+                "CAC (стоимость привлечения)": f"{cac:,.0f} руб.",
+                "LTV (пожизненная ценность)": f"{ltv:,.0f} руб.",
+                "ROMI (окупаемость)": f"{romi:.1f}%",
+                "LTV/CAC": f"{ltv_cac_ratio:.2f}",
+                "Конверсия в клиента": f"{conversion_rate:.1f}%",
+                "Оценка маркетинга": rating
             }
         
         elif dash_key == "hr_metrics":
-            avg_salary = a / c if c > 0 else 0
-            revenue_per_employee = b / c if c > 0 else 0
-            profit_per_employee = (b - a) / c if c > 0 else 0
+            # HR-метрики
+            payroll, employees, revenue, annual_turnover, market_salary = values[:5]
+            
+            # Средняя зарплата
+            avg_salary = payroll / employees if employees > 0 else 0
+            
+            # Производительность труда
+            revenue_per_employee = revenue / employees if employees > 0 else 0
+            
+            # Доля ФОТ в выручке
+            payroll_ratio = (payroll / revenue) * 100 if revenue > 0 else 0
+            
+            # Коэффициент текучести (годовой)
+            turnover_rate = (annual_turnover / employees) * 100 if employees > 0 else 0
+            
+            # Индекс удовлетворённости зарплатой (относительно рынка)
+            salary_index = (avg_salary / market_salary) * 100 if market_salary > 0 else 0
+            
+            # Оценка HR
+            score = 0
+            if turnover_rate < 15: score += 1
+            if payroll_ratio < 30: score += 1
+            if revenue_per_employee > 100000: score += 1
+            if salary_index > 100: score += 1
+            
+            if score >= 3:
+                rating = "Отлично 🟢"
+            elif score >= 2:
+                rating = "Хорошо 🟡"
+            else:
+                rating = "Требует внимания 🔴"
             
             return {
                 "Средняя зарплата": f"{avg_salary:,.0f} руб.",
                 "Выручка на сотрудника": f"{revenue_per_employee:,.0f} руб.",
-                "Прибыль на сотрудника": f"{profit_per_employee:,.0f} руб.",
-                "Текучесть": f"{d:.1f}%",
-                "Оценка": "Отлично 🟢" if d < 15 and profit_per_employee > 100000 else "Хорошо 🟡" if d < 25 else "Требует внимания 🔴"
+                "Доля ФОТ в выручке": f"{payroll_ratio:.1f}%",
+                "Годовая текучесть": f"{turnover_rate:.1f}%",
+                "Индекс зарплаты (рынок=100)": f"{salary_index:.1f}%",
+                "Оценка HR": rating
             }
         
         return None
@@ -1045,67 +1202,107 @@ def calculate_dashboard(dash_key, inputs):
         return None
 
 def create_dashboard_chart(dash_key, results):
-    """Создание графиков для дашборда"""
+    """Создание профессиональных графиков для дашборда"""
     if not VISUALIZATION_AVAILABLE:
         return None
     
     try:
         # Настройка стиля
         sns.set_style("whitegrid")
-        fig, ax = plt.subplots(figsize=(12, 8), facecolor='white')
+        sns.set_palette("husl")
+        
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6), facecolor='white')
         
         # Извлекаем числовые данные
         numeric_data = {}
+        labels = []
+        values = []
+        
         for key, value in results.items():
             if isinstance(value, str):
                 numbers = re.findall(r'[\d.]+', value.replace(',', ''))
                 if numbers:
                     try:
-                        numeric_data[key] = float(numbers[0])
+                        num_val = float(numbers[0])
+                        numeric_data[key] = num_val
+                        labels.append(key)
+                        values.append(num_val)
                     except:
                         pass
             elif isinstance(value, (int, float)):
                 numeric_data[key] = value
+                labels.append(key)
+                values.append(value)
         
         if not numeric_data:
-            # Если нет числовых данных, создаём информационную диаграмму
-            categories = list(results.keys())
-            values = [1 for _ in categories]
-            colors_list = ['#2ecc71' if '🟢' in str(results.get(k, '')) else '#f1c40f' if '🟡' in str(results.get(k, '')) else '#e74c3c' 
-                          for k in categories]
+            # Если нет данных, создаём информационный график
+            for ax in axes:
+                ax.text(0.5, 0.5, 'Нет данных для визуализации', 
+                       ha='center', va='center', fontsize=14, transform=ax.transAxes)
+                ax.set_xticks([])
+                ax.set_yticks([])
+            return fig
+        
+        # График 1: Столбчатая диаграмма - основные показатели
+        ax1 = axes[0]
+        
+        # Нормализуем значения для наглядности
+        max_val = max(values) if values else 1
+        normalized = [v/max_val * 100 for v in values]
+        
+        # Цвета в зависимости от значений
+        colors_list = []
+        for v in values:
+            if v > max_val * 0.7:
+                colors_list.append('#2ecc71')  # зелёный
+            elif v > max_val * 0.4:
+                colors_list.append('#f1c40f')  # жёлтый
+            else:
+                colors_list.append('#e74c3c')  # красный
+        
+        bars = ax1.barh(labels[:8], normalized[:8], color=colors_list[:8], 
+                       edgecolor='white', linewidth=2)
+        ax1.set_xlabel('Относительное значение, %', fontsize=11)
+        ax1.set_title('Ключевые показатели', fontsize=14, fontweight='bold')
+        
+        # Добавляем значения
+        for bar, val in zip(bars, values[:8]):
+            width = bar.get_width()
+            ax1.text(width + 1, bar.get_y() + bar.get_height()/2,
+                    f'{val:,.0f}', va='center', fontsize=9)
+        
+        # График 2: Круговая диаграмма - структура
+        ax2 = axes[1]
+        
+        # Берём первые 5 показателей для круговой диаграммы
+        top_labels = labels[:5]
+        top_values = values[:5]
+        
+        if top_values and sum(top_values) > 0:
+            # Создаём круговую диаграмму
+            wedges, texts, autotexts = ax2.pie(
+                top_values, 
+                labels=top_labels,
+                autopct='%1.1f%%',
+                startangle=90,
+                colors=sns.color_palette("husl", len(top_values))
+            )
             
-            ax.barh(categories, values, color=colors_list, edgecolor='white', linewidth=2)
-            ax.set_title('Оценка показателей', fontsize=18, fontweight='bold', pad=20)
+            # Настройка текста
+            for text in texts:
+                text.set_fontsize(9)
+            for autotext in autotexts:
+                autotext.set_color('white')
+                autotext.set_fontweight('bold')
+                autotext.set_fontsize(10)
             
-            for i, (cat, val) in enumerate(zip(categories, values)):
-                text = str(results.get(cat, ''))
-                ax.text(val + 0.1, i, text[:50], va='center', fontsize=10)
-            
-            ax.set_xlim(0, 2)
-            ax.set_xticks([])
-            
+            ax2.set_title('Структура показателей', fontsize=14, fontweight='bold')
         else:
-            # Создаём столбчатую диаграмму
-            categories = list(numeric_data.keys())
-            values = list(numeric_data.values())
-            
-            # Цвета в зависимости от значений
-            mean_val = np.mean(values) if values else 1
-            colors_list = ['#2ecc71' if v > mean_val else '#f1c40f' if v > mean_val * 0.5 else '#e74c3c' 
-                          for v in values]
-            
-            bars = ax.bar(categories, values, color=colors_list, edgecolor='white', linewidth=2)
-            ax.set_ylabel('Значение', fontsize=14)
-            ax.set_title('Ключевые показатели бизнеса', fontsize=18, fontweight='bold', pad=20)
-            
-            # Добавляем значения
-            for bar, val in zip(bars, values):
-                height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height + max(values)*0.02,
-                       f'{val:,.0f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
-            
-            plt.xticks(rotation=45, ha='right', fontsize=11)
-            
+            ax2.text(0.5, 0.5, 'Недостаточно данных', 
+                    ha='center', va='center', fontsize=14, transform=ax2.transAxes)
+            ax2.set_xticks([])
+            ax2.set_yticks([])
+        
         plt.tight_layout()
         return fig
         
@@ -1114,7 +1311,7 @@ def create_dashboard_chart(dash_key, results):
         return None
 
 def create_dashboard_pdf(results, chart_fig, user_info=None):
-    """Создание PDF-отчёта"""
+    """Создание профессионального PDF-отчёта"""
     if not VISUALIZATION_AVAILABLE:
         return None
     
@@ -1125,6 +1322,8 @@ def create_dashboard_pdf(results, chart_fig, user_info=None):
                                topMargin=72, bottomMargin=18)
         
         styles = getSampleStyleSheet()
+        
+        # Стили
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
@@ -1155,30 +1354,47 @@ def create_dashboard_pdf(results, chart_fig, user_info=None):
         story.append(Paragraph("📊 Управленческий дашборд", title_style))
         if user_info:
             story.append(Paragraph(f"Отчёт для: {user_info}", normal_style))
-        story.append(Paragraph(f"Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}", normal_style))
+        story.append(Paragraph(f"Дата формирования: {datetime.now().strftime('%d.%m.%Y %H:%M')}", normal_style))
         story.append(Spacer(1, 20))
         
         # График
         if chart_fig:
             with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
-                chart_fig.savefig(tmp_file.name, format='png', dpi=150, bbox_inches='tight', facecolor='white')
+                chart_fig.savefig(tmp_file.name, format='png', dpi=150, 
+                                bbox_inches='tight', facecolor='white')
                 tmp_file.flush()
-                img = Image(tmp_file.name, width=6*inch, height=4*inch)
+                img = Image(tmp_file.name, width=6*inch, height=3.5*inch)
                 story.append(img)
                 story.append(Spacer(1, 20))
         
         # Результаты в таблице
-        table_data = [['Показатель', 'Значение']]
-        for key, value in results.items():
-            table_data.append([Paragraph(key, normal_style), Paragraph(str(value), normal_style)])
+        story.append(Paragraph("📋 Детальный анализ показателей:", header_style))
         
-        table = Table(table_data, colWidths=[3*inch, 3*inch])
+        table_data = [['Показатель', 'Значение', 'Оценка']]
+        for key, value in results.items():
+            # Определяем оценку
+            if '🟢' in str(value):
+                status = '✅ Отлично'
+            elif '🟡' in str(value):
+                status = '⚠️ Средне'
+            elif '🔴' in str(value):
+                status = '❌ Требует внимания'
+            else:
+                status = '—'
+            
+            table_data.append([
+                Paragraph(key, normal_style), 
+                Paragraph(str(value), normal_style),
+                Paragraph(status, normal_style)
+            ])
+        
+        table = Table(table_data, colWidths=[2.5*inch, 2*inch, 1.5*inch])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
             ('GRID', (0, 0), (-1, -1), 1, colors.black),
@@ -1189,20 +1405,38 @@ def create_dashboard_pdf(results, chart_fig, user_info=None):
         story.append(Spacer(1, 20))
         
         # Рекомендации
-        story.append(Paragraph("💡 Рекомендации:", header_style))
+        story.append(Paragraph("💡 Рекомендации по улучшению:", header_style))
         
         recommendations = []
+        has_issues = False
+        
         for key, value in results.items():
             if '🔴' in str(value):
-                recommendations.append(f"• {key} требует внимания. Рекомендуется провести детальный анализ и разработать план улучшений.")
+                has_issues = True
+                if 'финанс' in key.lower() or 'маржинальность' in key.lower():
+                    recommendations.append("• Требуется оптимизация финансовых показателей. Рекомендуется снизить издержки и повысить эффективность.")
+                elif 'hr' in key.lower() or 'текучесть' in key.lower():
+                    recommendations.append("• Высокая текучесть кадров. Проведите анализ причин увольнений и пересмотрите систему мотивации.")
+                elif 'маркетинг' in key.lower() or 'romi' in key.lower():
+                    recommendations.append("• Маркетинговые инвестиции неэффективны. Пересмотрите рекламные каналы и проведите A/B-тестирование.")
+                else:
+                    recommendations.append(f"• {key} требует детального анализа и разработки плана улучшений.")
             elif '🟡' in str(value):
-                recommendations.append(f"• {key} на среднем уровне. Есть потенциал для роста.")
+                if recommendations and len(recommendations) < 3:
+                    recommendations.append(f"• {key} на среднем уровне. Есть потенциал для роста, рекомендуется провести дополнительный анализ.")
+        
+        if not has_issues:
+            recommendations.append("✅ Все показатели в норме. Рекомендуется поддерживать текущий уровень и искать новые точки роста.")
         
         if not recommendations:
-            recommendations.append("✅ Все показатели в норме. Продолжайте в том же духе!")
+            recommendations.append("• Проведите регулярный мониторинг ключевых показателей.")
         
-        for rec in recommendations:
+        for rec in recommendations[:5]:
             story.append(Paragraph(rec, normal_style))
+        
+        story.append(Spacer(1, 20))
+        story.append(Paragraph("📌 Отчёт сгенерирован автоматически. Для более детального анализа обратитесь к специалисту.", 
+                              ParagraphStyle('Footer', parent=styles['Normal'], fontSize=9, textColor=colors.grey)))
         
         doc.build(story)
         buffer.seek(0)
